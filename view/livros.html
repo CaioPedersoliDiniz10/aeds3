@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Livros – BiblioSystem</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<nav>
+  <span class="brand">📚 BiblioSystem</span>
+  <a href="index.html">Início</a>
+  <a href="usuarios.html">Usuários</a>
+  <a href="livros.html" class="active">Livros</a>
+  <a href="emprestimos.html">Empréstimos</a>
+  <a href="cupons.html">Cupons</a>
+</nav>
+
+<div class="container">
+  <h1>Gerenciar Livros</h1>
+
+  <div id="alert-area"></div>
+
+  <div class="card">
+    <h2>Cadastrar Novo Livro</h2>
+    <form id="form-criar">
+      <div class="form-group">
+        <label for="titulo">Título</label>
+        <input type="text" id="titulo" placeholder="Título do livro" required/>
+      </div>
+      <div class="form-group">
+        <label for="autor">Autor</label>
+        <input type="text" id="autor" placeholder="Nome do autor" required/>
+      </div>
+      <div class="form-group">
+        <label for="ano">Ano de Publicação</label>
+        <input type="number" id="ano" placeholder="Ex: 2020" min="1000" max="2100" required/>
+      </div>
+      <button type="submit" class="btn btn-primary">Cadastrar</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Consultar por ID</h2>
+    <div style="display:flex;gap:.75rem;align-items:flex-end;">
+      <div class="form-group" style="flex:1;margin:0;">
+        <label for="busca-id">ID do Livro</label>
+        <input type="number" id="busca-id" placeholder="Digite o ID" min="1"/>
+      </div>
+      <button class="btn btn-primary" onclick="buscarPorId()">Buscar</button>
+    </div>
+    <div id="resultado-busca" style="margin-top:1rem;"></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <h2 style="margin:0;">Livros Cadastrados</h2>
+      <button class="btn btn-primary btn-sm" onclick="carregar()">🔄 Atualizar</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Título</th><th>Autor</th><th>Ano</th><th>Ações</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div id="empty" class="empty hidden">Nenhum livro cadastrado.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Edição -->
+<div class="modal-backdrop hidden" id="modal">
+  <div class="modal">
+    <h2>Editar Livro</h2>
+    <input type="hidden" id="edit-id"/>
+    <div class="form-group"><label>Título</label><input type="text" id="edit-titulo"/></div>
+    <div class="form-group"><label>Autor</label><input type="text" id="edit-autor"/></div>
+    <div class="form-group"><label>Ano</label><input type="number" id="edit-ano" min="1000" max="2100"/></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal()" style="background:var(--border);">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarEdicao()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = 'http://localhost:8080/api/livros';
+
+  async function carregar() {
+    try {
+      const res = await fetch(API);
+      const lista = await res.json();
+      const tbody = document.getElementById('tbody');
+      const empty = document.getElementById('empty');
+      tbody.innerHTML = '';
+      if (!lista.length) { empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      lista.forEach(l => {
+        tbody.innerHTML += `<tr>
+          <td>${l.id}</td><td>${esc(l.titulo)}</td><td>${esc(l.autor)}</td><td>${l.ano}</td>
+          <td>
+            <button class="btn btn-sm btn-primary" onclick="abrirModal(${l.id},'${esc(l.titulo)}','${esc(l.autor)}',${l.ano})">Editar</button>
+            <button class="btn btn-sm btn-danger" onclick="excluir(${l.id})">Excluir</button>
+          </td>
+        </tr>`;
+      });
+    } catch(e) { mostrarAlerta('error','Erro ao carregar livros.'); }
+  }
+
+  document.getElementById('form-criar').addEventListener('submit', async e => {
+    e.preventDefault();
+    const body = new URLSearchParams({
+      titulo: document.getElementById('titulo').value,
+      autor:  document.getElementById('autor').value,
+      ano:    document.getElementById('ano').value
+    });
+    try {
+      const res = await fetch(API, { method:'POST', body });
+      const data = await res.json();
+      if (res.ok) { mostrarAlerta('success','Livro cadastrado! ID: '+data.id); e.target.reset(); carregar(); }
+      else mostrarAlerta('error', data.erro);
+    } catch(err) { mostrarAlerta('error','Erro ao cadastrar.'); }
+  });
+
+  async function buscarPorId() {
+    const id = document.getElementById('busca-id').value;
+    if (!id) return;
+    try {
+      const res = await fetch(`${API}?id=${id}`);
+      const data = await res.json();
+      const div = document.getElementById('resultado-busca');
+      if (res.ok) div.innerHTML = `<div class="alert alert-success">ID: ${data.id} | ${esc(data.titulo)} | ${esc(data.autor)} | ${data.ano}</div>`;
+      else div.innerHTML = `<div class="alert alert-error">${esc(data.erro)}</div>`;
+    } catch(e) {}
+  }
+
+  async function excluir(id) {
+    if (!confirm('Excluir livro #'+id+'?')) return;
+    try {
+      const res = await fetch(`${API}?id=${id}`, { method:'DELETE' });
+      const data = await res.json();
+      if (res.ok) { mostrarAlerta('success', data.mensagem); carregar(); }
+      else mostrarAlerta('error', data.erro);
+    } catch(e) { mostrarAlerta('error','Erro ao excluir.'); }
+  }
+
+  function abrirModal(id, titulo, autor, ano) {
+    document.getElementById('edit-id').value = id;
+    document.getElementById('edit-titulo').value = titulo;
+    document.getElementById('edit-autor').value = autor;
+    document.getElementById('edit-ano').value = ano;
+    document.getElementById('modal').classList.remove('hidden');
+  }
+  function fecharModal() { document.getElementById('modal').classList.add('hidden'); }
+
+  async function salvarEdicao() {
+    const id    = document.getElementById('edit-id').value;
+    const body  = new URLSearchParams({
+      titulo: document.getElementById('edit-titulo').value,
+      autor:  document.getElementById('edit-autor').value,
+      ano:    document.getElementById('edit-ano').value
+    });
+    try {
+      const res = await fetch(`${API}?id=${id}`, { method:'PUT', body });
+      const data = await res.json();
+      if (res.ok) { mostrarAlerta('success','Livro atualizado!'); fecharModal(); carregar(); }
+      else mostrarAlerta('error', data.erro);
+    } catch(e) { mostrarAlerta('error','Erro ao atualizar.'); }
+  }
+
+  function mostrarAlerta(tipo, msg) {
+    const div = document.getElementById('alert-area');
+    div.innerHTML = `<div class="alert alert-${tipo}">${esc(msg)}</div>`;
+    setTimeout(() => div.innerHTML = '', 4000);
+  }
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  carregar();
+</script>
+</body>
+</html>

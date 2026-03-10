@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cupons – BiblioSystem</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<nav>
+  <span class="brand">📚 BiblioSystem</span>
+  <a href="index.html">Início</a>
+  <a href="usuarios.html">Usuários</a>
+  <a href="livros.html">Livros</a>
+  <a href="emprestimos.html">Empréstimos</a>
+  <a href="cupons.html" class="active">Cupons</a>
+</nav>
+
+<div class="container">
+  <h1>Gerenciar Cupons</h1>
+
+  <div id="alert-area"></div>
+
+  <!-- Associar Cupom -->
+  <div class="card">
+    <h2>Associar Cupom a um Empréstimo</h2>
+    <form id="form-criar">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div class="form-group">
+          <label for="idEmprestimo">ID do Empréstimo</label>
+          <input type="number" id="idEmprestimo" placeholder="ID do empréstimo" min="1" required/>
+        </div>
+        <div class="form-group">
+          <label for="tipo">Tipo</label>
+          <select id="tipo" required>
+            <option value="">Selecione...</option>
+            <option value="DESCONTO">DESCONTO (% de desconto de multa)</option>
+            <option value="EXTENSAO">EXTENSAO (dias adicionais de prazo)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="valor">Valor</label>
+          <input type="number" id="valor" placeholder="Ex: 10 (para 10% ou 10 dias)" step="0.01" min="0.01" required/>
+        </div>
+        <div class="form-group">
+          <label for="descricao">Descrição</label>
+          <input type="text" id="descricao" placeholder="Descrição opcional do cupom"/>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-success">Associar Cupom</button>
+    </form>
+  </div>
+
+  <!-- Consultar Cupom por Empréstimo -->
+  <div class="card">
+    <h2>Consultar Cupom de um Empréstimo</h2>
+    <div style="display:flex;gap:.75rem;align-items:flex-end;">
+      <div class="form-group" style="flex:1;margin:0;">
+        <label for="busca-id">ID do Empréstimo</label>
+        <input type="number" id="busca-id" placeholder="Digite o ID" min="1"/>
+      </div>
+      <button class="btn btn-primary" onclick="buscarCupom()">Buscar</button>
+    </div>
+    <div id="resultado-busca" style="margin-top:1rem;"></div>
+  </div>
+
+  <!-- Listar todos -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <h2 style="margin:0;">Cupons Registrados</h2>
+      <button class="btn btn-primary btn-sm" onclick="carregar()">🔄 Atualizar</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Empréstimo</th><th>Tipo</th><th>Valor</th><th>Descrição</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div id="empty" class="empty hidden">Nenhum cupom registrado.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API_EMP = 'http://localhost:8080/api/emprestimos';
+  const API_CUPOM_LIST = 'http://localhost:8080/api/emprestimos'; // cupons listados via DAO
+
+  // Lista cupons lendo via endpoint de cupons do servidor
+  async function carregar() {
+    // NOTE: precisamos de um endpoint dedicado para listar todos os cupons.
+    // Usamos a rota GET /api/emprestimos/cupom sem id para listar (se suportado),
+    // ou buscamos empréstimos e depois seus cupons:
+    try {
+      const resEmp = await fetch(API_EMP);
+      const emprestimos = await resEmp.json();
+      const tbody = document.getElementById('tbody');
+      const empty = document.getElementById('empty');
+      tbody.innerHTML = '';
+      let total = 0;
+      for (const e of emprestimos) {
+        const resCupom = await fetch(`${API_EMP}/cupom?id=${e.id}`);
+        if (resCupom.ok) {
+          const c = await resCupom.json();
+          total++;
+          tbody.innerHTML += `<tr>
+            <td>${c.id}</td>
+            <td>#${c.idEmprestimo}</td>
+            <td><span style="background:${c.tipo==='DESCONTO'?'#dbeafe':'#dcfce7'};padding:.2rem .5rem;border-radius:4px;font-size:.8rem;font-weight:600;">${esc(c.tipo)}</span></td>
+            <td>${c.valor}${c.tipo==='DESCONTO' ? '%' : ' dias'}</td>
+            <td>${esc(c.descricao)||'—'}</td>
+          </tr>`;
+        }
+      }
+      if (!total) { empty.classList.remove('hidden'); }
+      else { empty.classList.add('hidden'); }
+    } catch(err) { mostrarAlerta('error','Erro ao carregar cupons.'); }
+  }
+
+  document.getElementById('form-criar').addEventListener('submit', async e => {
+    e.preventDefault();
+    const id   = document.getElementById('idEmprestimo').value;
+    const body = new URLSearchParams({
+      tipo:      document.getElementById('tipo').value,
+      descricao: document.getElementById('descricao').value,
+      valor:     document.getElementById('valor').value
+    });
+    try {
+      const res = await fetch(`${API_EMP}/cupom?id=${id}`, { method:'POST', body });
+      const data = await res.json();
+      if (res.ok) { mostrarAlerta('success','Cupom associado! ID do cupom: '+data.id); e.target.reset(); carregar(); }
+      else mostrarAlerta('error', data.erro);
+    } catch(err) { mostrarAlerta('error','Erro ao associar cupom.'); }
+  });
+
+  async function buscarCupom() {
+    const id = document.getElementById('busca-id').value;
+    if (!id) return;
+    try {
+      const res = await fetch(`${API_EMP}/cupom?id=${id}`);
+      const data = await res.json();
+      const div = document.getElementById('resultado-busca');
+      if (res.ok) {
+        div.innerHTML = `<div class="alert alert-success">
+          Cupom #${data.id} | Empréstimo: #${data.idEmprestimo} | Tipo: ${esc(data.tipo)} | Valor: ${data.valor} | ${esc(data.descricao)||'Sem descrição'}
+        </div>`;
+      } else {
+        div.innerHTML = `<div class="alert alert-error">${esc(data.erro)}</div>`;
+      }
+    } catch(e) {}
+  }
+
+  function mostrarAlerta(tipo, msg) {
+    const div = document.getElementById('alert-area');
+    div.innerHTML = `<div class="alert alert-${tipo}">${esc(msg)}</div>`;
+    setTimeout(() => div.innerHTML = '', 5000);
+  }
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  carregar();
+</script>
+</body>
+</html>

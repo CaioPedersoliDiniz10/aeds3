@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BiblioSystem</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<nav>
+  <span class="brand">📚 BiblioSystem</span>
+  <a href="index.html" class="active">Início</a>
+  <a href="usuarios.html">Usuários</a>
+  <a href="livros.html">Livros</a>
+  <a href="emprestimos.html">Empréstimos</a>
+  <a href="cupons.html">Cupons</a>
+</nav>
+
+<div class="container">
+  <h1>Bem-vindo ao BiblioSystem</h1>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-top:1rem;">
+
+    <a href="usuarios.html" style="text-decoration:none;">
+      <div class="card" style="text-align:center;cursor:pointer;transition:transform .15s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform=''">
+        <div style="font-size:2.5rem;margin-bottom:.5rem;">👤</div>
+        <strong>Usuários</strong>
+        <p style="color:var(--muted);font-size:.85rem;margin-top:.3rem;">Cadastrar, listar e gerenciar usuários</p>
+      </div>
+    </a>
+
+    <a href="livros.html" style="text-decoration:none;">
+      <div class="card" style="text-align:center;cursor:pointer;transition:transform .15s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform=''">
+        <div style="font-size:2.5rem;margin-bottom:.5rem;">📖</div>
+        <strong>Livros</strong>
+        <p style="color:var(--muted);font-size:.85rem;margin-top:.3rem;">Cadastrar, listar e gerenciar livros</p>
+      </div>
+    </a>
+
+    <a href="emprestimos.html" style="text-decoration:none;">
+      <div class="card" style="text-align:center;cursor:pointer;transition:transform .15s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform=''">
+        <div style="font-size:2.5rem;margin-bottom:.5rem;">🔄</div>
+        <strong>Empréstimos</strong>
+        <p style="color:var(--muted);font-size:.85rem;margin-top:.3rem;">Criar e controlar empréstimos</p>
+      </div>
+    </a>
+
+    <a href="cupons.html" style="text-decoration:none;">
+      <div class="card" style="text-align:center;cursor:pointer;transition:transform .15s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform=''">
+        <div style="font-size:2.5rem;margin-bottom:.5rem;">🎟️</div>
+        <strong>Cupons</strong>
+        <p style="color:var(--muted);font-size:.85rem;margin-top:.3rem;">Associar cupons/descontos a empréstimos</p>
+      </div>
+    </a>
+
+  </div>
+</div>
+
+</body>
+</html>

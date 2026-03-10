@@ -1,0 +1,158 @@
+/* =============================================
+   BiblioSystem – Estilos Globais
+   ============================================= */
+:root {
+    --primary:   #2563eb;
+    --primary-h: #1d4ed8;
+    --danger:    #dc2626;
+    --success:   #16a34a;
+    --bg:        #f1f5f9;
+    --surface:   #ffffff;
+    --border:    #e2e8f0;
+    --text:      #1e293b;
+    --muted:     #64748b;
+    --radius:    8px;
+    --shadow:    0 1px 4px rgba(0,0,0,.1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+}
+
+/* ----- NAV ----- */
+nav {
+    background: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: .75rem 2rem;
+    box-shadow: 0 2px 6px rgba(0,0,0,.2);
+}
+nav .brand { font-size: 1.25rem; font-weight: 700; margin-right: auto; }
+nav a {
+    color: #fff;
+    text-decoration: none;
+    padding: .4rem .75rem;
+    border-radius: var(--radius);
+    font-size: .9rem;
+    transition: background .15s;
+}
+nav a:hover, nav a.active { background: rgba(255,255,255,.2); }
+
+/* ----- LAYOUT ----- */
+.container {
+    max-width: 960px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+h1 { font-size: 1.5rem; margin-bottom: 1.5rem; }
+h2 { font-size: 1.1rem; margin-bottom: 1rem; color: var(--muted); }
+
+/* ----- CARD ----- */
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 1.5rem;
+}
+
+/* ----- FORM ----- */
+.form-group { margin-bottom: 1rem; }
+label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .3rem; }
+input, select, textarea {
+    width: 100%;
+    padding: .5rem .75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: .95rem;
+    outline: none;
+    transition: border-color .15s;
+}
+input:focus, select:focus { border-color: var(--primary); }
+
+/* ----- BUTTONS ----- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .5rem 1.1rem;
+    border: none;
+    border-radius: var(--radius);
+    font-size: .9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, opacity .15s;
+}
+.btn-primary  { background: var(--primary);  color: #fff; }
+.btn-primary:hover  { background: var(--primary-h); }
+.btn-danger   { background: var(--danger);   color: #fff; }
+.btn-danger:hover   { opacity: .85; }
+.btn-success  { background: var(--success);  color: #fff; }
+.btn-success:hover  { opacity: .85; }
+.btn-sm { padding: .3rem .7rem; font-size: .8rem; }
+
+/* ----- TABLE ----- */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th {
+    background: var(--bg);
+    text-align: left;
+    padding: .6rem .8rem;
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: var(--muted);
+    border-bottom: 2px solid var(--border);
+}
+td {
+    padding: .65rem .8rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #f8fafc; }
+
+/* ----- ALERTS ----- */
+.alert {
+    padding: .75rem 1rem;
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+    font-size: .9rem;
+}
+.alert-success { background: #dcfce7; color: var(--success); border: 1px solid #bbf7d0; }
+.alert-error   { background: #fee2e2; color: var(--danger);  border: 1px solid #fecaca; }
+
+/* ----- MODAL ----- */
+.modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.4);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+}
+.modal-backdrop.hidden { display: none; }
+.modal {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 2rem;
+    width: min(480px, 95vw);
+    box-shadow: 0 8px 30px rgba(0,0,0,.2);
+}
+.modal h2 { font-size: 1.1rem; color: var(--text); margin-bottom: 1rem; }
+.modal-footer { display: flex; gap: .75rem; justify-content: flex-end; margin-top: 1.25rem; }
+
+/* ----- EMPTY ----- */
+.empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--muted);
+    font-size: .95rem;
+}

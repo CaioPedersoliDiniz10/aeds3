@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Usuários – BiblioSystem</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<nav>
+  <span class="brand">📚 BiblioSystem</span>
+  <a href="index.html">Início</a>
+  <a href="usuarios.html" class="active">Usuários</a>
+  <a href="livros.html">Livros</a>
+  <a href="emprestimos.html">Empréstimos</a>
+  <a href="cupons.html">Cupons</a>
+</nav>
+
+<div class="container">
+  <h1>Gerenciar Usuários</h1>
+
+  <div id="alert-area"></div>
+
+  <!-- Formulário de cadastro -->
+  <div class="card">
+    <h2>Cadastrar Novo Usuário</h2>
+    <form id="form-criar">
+      <div class="form-group">
+        <label for="nome">Nome</label>
+        <input type="text" id="nome" placeholder="Nome completo" required/>
+      </div>
+      <div class="form-group">
+        <label for="email">E-mail</label>
+        <input type="email" id="email" placeholder="exemplo@email.com" required/>
+      </div>
+      <button type="submit" class="btn btn-primary">Cadastrar</button>
+    </form>
+  </div>
+
+  <!-- Busca por ID -->
+  <div class="card">
+    <h2>Consultar por ID</h2>
+    <div style="display:flex;gap:.75rem;align-items:flex-end;">
+      <div class="form-group" style="flex:1;margin:0;">
+        <label for="busca-id">ID do Usuário</label>
+        <input type="number" id="busca-id" placeholder="Digite o ID" min="1"/>
+      </div>
+      <button class="btn btn-primary" onclick="buscarPorId()">Buscar</button>
+    </div>
+    <div id="resultado-busca" style="margin-top:1rem;"></div>
+  </div>
+
+  <!-- Listagem -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <h2 style="margin:0;">Usuários Cadastrados</h2>
+      <button class="btn btn-primary btn-sm" onclick="carregarUsuarios()">🔄 Atualizar</button>
+    </div>
+    <div class="table-wrap">
+      <table id="tabela">
+        <thead>
+          <tr>
+            <th>ID</th><th>Nome</th><th>E-mail</th><th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div id="empty" class="empty hidden">Nenhum usuário cadastrado.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Edição -->
+<div class="modal-backdrop hidden" id="modal">
+  <div class="modal">
+    <h2>Editar Usuário</h2>
+    <input type="hidden" id="edit-id"/>
+    <div class="form-group">
+      <label>Nome</label>
+      <input type="text" id="edit-nome"/>
+    </div>
+    <div class="form-group">
+      <label>E-mail</label>
+      <input type="email" id="edit-email"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal()" style="background:var(--border);">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarEdicao()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = 'http://localhost:8080/api/usuarios';
+
+  async function carregarUsuarios() {
+    try {
+      const res = await fetch(API);
+      const lista = await res.json();
+      const tbody = document.getElementById('tbody');
+      const empty = document.getElementById('empty');
+      tbody.innerHTML = '';
+      if (!lista.length) { empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      lista.forEach(u => {
+        tbody.innerHTML += `<tr>
+          <td>${u.id}</td>
+          <td>${esc(u.nome)}</td>
+          <td>${esc(u.email)}</td>
+          <td>
+            <button class="btn btn-sm btn-primary" onclick="abrirModal(${u.id},'${esc(u.nome)}','${esc(u.email)}')">Editar</button>
+            <button class="btn btn-sm btn-danger" onclick="excluir(${u.id})">Excluir</button>
+          </td>
+        </tr>`;
+      });
+    } catch(e) { mostrarAlerta('error','Erro ao carregar usuários.'); }
+  }
+
+  document.getElementById('form-criar').addEventListener('submit', async e => {
+    e.preventDefault();
+    const body = new URLSearchParams({ nome: document.getElementById('nome').value, email: document.getElementById('email').value });
+    try {
+      const res = await fetch(API, { method:'POST', body });
+      const data = await res.json();
+      if (res.ok) { mostrarAlerta('success','Usuário cadastrado com sucesso! ID: ' + data.id); e.target.reset(); carregarUsuarios(); }
+      else mostrarAlerta('error', data.erro);
+    } catch(err) { mostrarAlerta('error','Erro ao cadastrar.'); }
+  });
+
+  async function buscarPorId() {
+    const id = document.getElementById('busca-id').value;
+    if (!id) return;
+    try {
+      const res = await fetch(`${API}?id=${id}`);
+      const data = await res.json();
+      const div = document.getElementById('resultado-busca');
+      if (res.ok) {
+        div.innerHTML = `<div class="alert alert-success">ID: ${data.id} | Nome: ${esc(data.nome)} | E-mail: ${esc(data.email)}</div>`;
+      } else {
+        div.innerHTML = `<div class="alert alert-error">${esc(data.erro)}</div>`;
+      }
+    } catch(e) { document.getElementById('resultado-busca').innerHTML = '<div class="alert alert-error">Erro na consulta.</div>'; }
+  }
+
+  async function excluir(id) {
+    if (!confirm('Excluir usuário #' + id + '? (exclusão lógica)')) return;
+    try {
+      const res = await fetch(`${API}?id=${id}`, { method:'DELETE' });
+      const data = await res.json();
+      if (res.ok) { mostrarAlerta('success', data.mensagem); carregarUsuarios(); }
+      else mostrarAlerta('error', data.erro);
+    } catch(e) { mostrarAlerta('error','Erro ao excluir.'); }
+  }
+
+  function abrirModal(id, nome, email) {
+    document.getElementById('edit-id').value = id;
+    document.getElementById('edit-nome').value = nome;
+    document.getElementById('edit-email').value = email;
+    document.getElementById('modal').classList.remove('hidden');
+  }
+  function fecharModal() { document.getElementById('modal').classList.add('hidden'); }
+
+  async function salvarEdicao() {
+    const id = document.getElementById('edit-id').value;
+    const nome = document.getElementById('edit-nome').value;
+    const email = document.getElementById('edit-email').value;
+    const body = new URLSearchParams({ nome, email });
+    try {
+      const res = await fetch(`${API}?id=${id}`, { method:'PUT', body });
+      const data = await res.json();
+      if (res.ok) { mostrarAlerta('success','Usuário atualizado!'); fecharModal(); carregarUsuarios(); }
+      else mostrarAlerta('error', data.erro);
+    } catch(e) { mostrarAlerta('error','Erro ao atualizar.'); }
+  }
+
+  function mostrarAlerta(tipo, msg) {
+    const div = document.getElementById('alert-area');
+    div.innerHTML = `<div class="alert alert-${tipo}">${esc(msg)}</div>`;
+    setTimeout(() => div.innerHTML = '', 4000);
+  }
+
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  carregarUsuarios();
+</script>
+</body>
+</html>
