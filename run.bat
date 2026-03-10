@@ -11,10 +11,12 @@ javac -encoding UTF-8 -d %BIN% ^
   %SRC%\model\Usuario.java ^
   %SRC%\model\Livro.java ^
   %SRC%\model\Emprestimo.java ^
+  %SRC%\model\EmprestimoItem.java ^
   %SRC%\model\Cupom.java ^
   %SRC%\dao\UsuarioDAO.java ^
   %SRC%\dao\LivroDAO.java ^
   %SRC%\dao\EmprestimoDAO.java ^
+  %SRC%\dao\EmprestimoItemDAO.java ^
   %SRC%\dao\CupomDAO.java ^
   %SRC%\controller\UsuarioController.java ^
   %SRC%\controller\LivroController.java ^

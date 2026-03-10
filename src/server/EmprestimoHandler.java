@@ -37,6 +37,33 @@ public class EmprestimoHandler implements HttpHandler {
             if ("OPTIONS".equals(method)) { ex.sendResponseHeaders(204, -1); return; }
 
             boolean isCupom = path.endsWith("/cupom");
+            boolean isItens = path.endsWith("/itens");
+
+            if (isItens) {
+                Map<String, String> params = queryParams(ex.getRequestURI());
+
+                if ("GET".equals(method)) {
+                    int id = Integer.parseInt(params.getOrDefault("id", "0"));
+                    sendJson(ex, 200, toJsonArray(ctrl.listarItens(id)));
+
+                } else if ("POST".equals(method)) {
+                    int id = Integer.parseInt(params.getOrDefault("id", "0"));
+                    Map<String, String> b = parseBody(ex);
+                    int idLivro = Integer.parseInt(b.getOrDefault("idLivro", "0"));
+                    int quantidade = Integer.parseInt(b.getOrDefault("quantidade", "1"));
+                    model.EmprestimoItem item = ctrl.adicionarItem(id, idLivro, quantidade);
+                    sendJson(ex, 201, item.toString());
+
+                } else if ("DELETE".equals(method)) {
+                    int itemId = Integer.parseInt(params.getOrDefault("itemId", "0"));
+                    ctrl.removerItem(itemId);
+                    sendJson(ex, 200, "{\"mensagem\":\"Item removido com sucesso.\"}");
+
+                } else {
+                    sendJson(ex, 405, "{\"erro\":\"Método não permitido.\"}");
+                }
+                return;
+            }
 
             if (isCupom) {
                 Map<String, String> params = queryParams(ex.getRequestURI());
@@ -69,8 +96,7 @@ public class EmprestimoHandler implements HttpHandler {
             } else if ("POST".equals(method)) {
                 Map<String, String> b = parseBody(ex);
                 int idUsuario = Integer.parseInt(b.getOrDefault("idUsuario", "0"));
-                int idLivro   = Integer.parseInt(b.getOrDefault("idLivro", "0"));
-                Emprestimo e = ctrl.criar(idUsuario, idLivro, b.get("dataEmprestimo"), b.get("dataDevolucao"));
+                Emprestimo e = ctrl.criar(idUsuario, b.get("dataEmprestimo"), b.get("dataDevolucao"));
                 sendJson(ex, 201, e.toString());
 
             } else if ("PUT".equals(method)) {

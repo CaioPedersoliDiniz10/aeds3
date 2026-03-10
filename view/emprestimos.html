@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Empréstimos – BiblioSystem</title>
   <link rel="stylesheet" href="style.css"/>
+  <style>
+    .items-list { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.4rem; }
+    .item-tag {
+      background:#dbeafe; color:#1d4ed8; border-radius:4px;
+      padding:.2rem .5rem; font-size:.8rem; display:flex; align-items:center; gap:.3rem;
+    }
+    .item-tag button { background:none; border:none; cursor:pointer; color:#dc2626; font-size:.85rem; padding:0; line-height:1; }
+  </style>
 </head>
 <body>
 
@@ -22,17 +30,14 @@
 
   <div id="alert-area"></div>
 
+  <!-- 1. Criar Empréstimo -->
   <div class="card">
-    <h2>Criar Novo Empréstimo</h2>
+    <h2>1. Criar Novo Empréstimo</h2>
     <form id="form-criar">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
         <div class="form-group">
           <label for="idUsuario">ID do Usuário</label>
           <input type="number" id="idUsuario" placeholder="ID do usuário" min="1" required/>
-        </div>
-        <div class="form-group">
-          <label for="idLivro">ID do Livro</label>
-          <input type="number" id="idLivro" placeholder="ID do livro" min="1" required/>
         </div>
         <div class="form-group">
           <label for="dataEmprestimo">Data de Empréstimo</label>
@@ -47,8 +52,29 @@
     </form>
   </div>
 
+  <!-- 2. Adicionar Livros ao Empréstimo -->
   <div class="card">
-    <h2>Consultar por ID</h2>
+    <h2>2. Adicionar Livros ao Empréstimo</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:.75rem;align-items:flex-end;">
+      <div class="form-group" style="margin:0;">
+        <label for="item-idEmprestimo">ID do Empréstimo</label>
+        <input type="number" id="item-idEmprestimo" placeholder="Ex: 1" min="1"/>
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label for="item-idLivro">ID do Livro</label>
+        <input type="number" id="item-idLivro" placeholder="Ex: 3" min="1"/>
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label for="item-quantidade">Quantidade</label>
+        <input type="number" id="item-quantidade" value="1" min="1"/>
+      </div>
+      <button class="btn btn-success" onclick="adicionarItem()">Adicionar</button>
+    </div>
+  </div>
+
+  <!-- 3. Consultar por ID -->
+  <div class="card">
+    <h2>Consultar Empréstimo por ID</h2>
     <div style="display:flex;gap:.75rem;align-items:flex-end;">
       <div class="form-group" style="flex:1;margin:0;">
         <label for="busca-id">ID do Empréstimo</label>
@@ -59,6 +85,7 @@
     <div id="resultado-busca" style="margin-top:1rem;"></div>
   </div>
 
+  <!-- Listagem -->
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
       <h2 style="margin:0;">Empréstimos Ativos</h2>
@@ -66,7 +93,12 @@
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>ID</th><th>Usuário</th><th>Livro</th><th>Data Emp.</th><th>Data Dev.</th><th>Ações</th></tr></thead>
+        <thead>
+          <tr>
+            <th>ID</th><th>Usuário</th><th>Data Empréstimo</th><th>Data Devolução</th>
+            <th>Livros</th><th>Ações</th>
+          </tr>
+        </thead>
         <tbody id="tbody"></tbody>
       </table>
       <div id="empty" class="empty hidden">Nenhum empréstimo registrado.</div>
@@ -100,37 +132,80 @@
       tbody.innerHTML = '';
       if (!lista.length) { empty.classList.remove('hidden'); return; }
       empty.classList.add('hidden');
-      lista.forEach(e => {
+
+      for (const e of lista) {
+        let itensHtml = '—';
+        try {
+          const ri = await fetch(`${API}/itens?id=${e.id}`);
+          if (ri.ok) {
+            const itens = await ri.json();
+            if (itens.length) {
+              itensHtml = itens.map(i =>
+                `<span class="item-tag">📖 Livro #${i.idLivro} (x${i.quantidade})
+                  <button onclick="removerItem(${i.id})" title="Remover">✕</button>
+                </span>`
+              ).join('');
+            }
+          }
+        } catch(ignore) {}
+
         tbody.innerHTML += `<tr>
           <td>${e.id}</td>
           <td>#${e.idUsuario}</td>
-          <td>#${e.idLivro}</td>
           <td>${esc(e.dataEmprestimo)}</td>
           <td>${esc(e.dataDevolucao) || '—'}</td>
+          <td><div class="items-list">${itensHtml}</div></td>
           <td>
             <button class="btn btn-sm btn-primary" onclick="abrirModal(${e.id},'${esc(e.dataEmprestimo)}','${esc(e.dataDevolucao)}')">Editar</button>
             <button class="btn btn-sm btn-danger" onclick="excluir(${e.id})">Excluir</button>
           </td>
         </tr>`;
-      });
+      }
     } catch(err) { mostrarAlerta('error','Erro ao carregar empréstimos.'); }
   }
 
   document.getElementById('form-criar').addEventListener('submit', async e => {
     e.preventDefault();
     const body = new URLSearchParams({
-      idUsuario:       document.getElementById('idUsuario').value,
-      idLivro:         document.getElementById('idLivro').value,
-      dataEmprestimo:  document.getElementById('dataEmprestimo').value,
-      dataDevolucao:   document.getElementById('dataDevolucao').value
+      idUsuario:      document.getElementById('idUsuario').value,
+      dataEmprestimo: document.getElementById('dataEmprestimo').value,
+      dataDevolucao:  document.getElementById('dataDevolucao').value
     });
     try {
       const res = await fetch(API, { method:'POST', body });
       const data = await res.json();
-      if (res.ok) { mostrarAlerta('success','Empréstimo criado! ID: '+data.id); e.target.reset(); carregar(); }
-      else mostrarAlerta('error', data.erro);
+      if (res.ok) {
+        mostrarAlerta('success', `Empréstimo criado! ID: ${data.id} — agora adicione os livros na seção abaixo.`);
+        document.getElementById('item-idEmprestimo').value = data.id;
+        e.target.reset();
+        carregar();
+      } else mostrarAlerta('error', data.erro);
     } catch(err) { mostrarAlerta('error','Erro ao criar empréstimo.'); }
   });
+
+  async function adicionarItem() {
+    const idEmp   = document.getElementById('item-idEmprestimo').value;
+    const idLivro = document.getElementById('item-idLivro').value;
+    const qtd     = document.getElementById('item-quantidade').value || 1;
+    if (!idEmp || !idLivro) { mostrarAlerta('error','Preencha o ID do empréstimo e do livro.'); return; }
+    const body = new URLSearchParams({ idLivro, quantidade: qtd });
+    try {
+      const res = await fetch(`${API}/itens?id=${idEmp}`, { method:'POST', body });
+      const data = await res.json();
+      if (res.ok) { mostrarAlerta('success', `Livro #${data.idLivro} adicionado ao empréstimo #${idEmp}!`); carregar(); }
+      else mostrarAlerta('error', data.erro);
+    } catch(err) { mostrarAlerta('error','Erro ao adicionar livro.'); }
+  }
+
+  async function removerItem(itemId) {
+    if (!confirm(`Remover item #${itemId}?`)) return;
+    try {
+      const res = await fetch(`${API}/itens?itemId=${itemId}`, { method:'DELETE' });
+      const data = await res.json();
+      if (res.ok) { mostrarAlerta('success', data.mensagem); carregar(); }
+      else mostrarAlerta('error', data.erro);
+    } catch(e) { mostrarAlerta('error','Erro ao remover item.'); }
+  }
 
   async function buscarPorId() {
     const id = document.getElementById('busca-id').value;
@@ -139,8 +214,17 @@
       const res = await fetch(`${API}?id=${id}`);
       const data = await res.json();
       const div = document.getElementById('resultado-busca');
-      if (res.ok) div.innerHTML = `<div class="alert alert-success">ID: ${data.id} | Usuário: #${data.idUsuario} | Livro: #${data.idLivro} | Emp: ${esc(data.dataEmprestimo)} | Dev: ${esc(data.dataDevolucao)||'—'}</div>`;
-      else div.innerHTML = `<div class="alert alert-error">${esc(data.erro)}</div>`;
+      if (res.ok) {
+        const ri = await fetch(`${API}/itens?id=${id}`);
+        const itens = ri.ok ? await ri.json() : [];
+        const livros = itens.map(i => `Livro #${i.idLivro} (x${i.quantidade})`).join(', ') || 'nenhum';
+        div.innerHTML = `<div class="alert alert-success">
+          ID: ${data.id} | Usuário: #${data.idUsuario} | Emp: ${esc(data.dataEmprestimo)} | Dev: ${esc(data.dataDevolucao)||'—'}<br>
+          Livros: ${esc(livros)}
+        </div>`;
+      } else {
+        div.innerHTML = `<div class="alert alert-error">${esc(data.erro)}</div>`;
+      }
     } catch(e) {}
   }
 
@@ -179,11 +263,12 @@
   function mostrarAlerta(tipo, msg) {
     const div = document.getElementById('alert-area');
     div.innerHTML = `<div class="alert alert-${tipo}">${esc(msg)}</div>`;
-    setTimeout(() => div.innerHTML = '', 4000);
+    setTimeout(() => div.innerHTML = '', 5000);
   }
   function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   carregar();
 </script>
+  <script src="livereload.js"></script>
 </body>
 </html>
