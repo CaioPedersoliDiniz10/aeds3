@@ -1,0 +1,33 @@
+# Arquivos de compilação
+bin/
+*.class
+*.jar
+*.war
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# Arquivos temporários
+*.bak
+*.tmp
+*.log
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Dados dinâmicos (dados são recriados em runtime)
+data/*.dat
+data/*.idx
+
+# Node modules (se usar frontend com npm)
+node_modules/
+package-lock.json
+
+# Próxima execução gerará novos dados
+data/
