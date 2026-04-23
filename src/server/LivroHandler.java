@@ -2,11 +2,10 @@ package server;
 
 import com.sun.net.httpserver.*;
 import controller.LivroController;
-import model.Livro;
-
 import java.io.*;
 import java.net.URI;
 import java.util.*;
+import model.Livro;
 
 /**
  * Rotas REST para /api/livros
@@ -15,6 +14,12 @@ import java.util.*;
  *   POST   /api/livros         -> criar  (body: titulo=...&autor=...&ano=...)
  *   PUT    /api/livros?id=X    -> atualizar
  *   DELETE /api/livros?id=X    -> excluir (lápide)
+ *
+ * Rotas complementares:
+ *   GET    /api/livros/ordenacao-externa?atributo=titulo|autor|ano
+ *   GET    /api/livros/bplus                 -> estatisticas do indice B+
+ *   GET    /api/livros/bplus?id=X            -> consulta direta por indice B+
+ *   GET    /api/livros/bplus?reconstruir=true -> reconstrucao + estatisticas
  */
 public class LivroHandler implements HttpHandler {
 
@@ -28,14 +33,57 @@ public class LivroHandler implements HttpHandler {
     public void handle(HttpExchange ex) throws IOException {
         addCorsHeaders(ex);
         String method = ex.getRequestMethod();
+        String path = ex.getRequestURI().getPath();
+
+        boolean isOrdenacaoExterna = path.endsWith("/ordenacao-externa");
+        boolean isBPlus = path.endsWith("/bplus");
 
         try {
             if ("OPTIONS".equals(method)) { ex.sendResponseHeaders(204, -1); return; }
 
+            if (isOrdenacaoExterna) {
+                if (!"GET".equals(method)) {
+                    sendJson(ex, 405, "{\"erro\":\"Método não permitido.\"}");
+                    return;
+                }
+
+                Map<String, String> params = queryParams(ex.getRequestURI());
+                String atributo = params.getOrDefault("atributo", "titulo");
+                sendJson(ex, 200, toJsonArray(ctrl.listarOrdenadosExternamente(atributo)));
+                return;
+            }
+
+            if (isBPlus) {
+                if (!"GET".equals(method)) {
+                    sendJson(ex, 405, "{\"erro\":\"Método não permitido.\"}");
+                    return;
+                }
+
+                Map<String, String> params = queryParams(ex.getRequestURI());
+
+                if ("true".equalsIgnoreCase(params.getOrDefault("reconstruir", "false"))) {
+                    ctrl.reconstruirIndiceBPlus();
+                }
+
+                if (params.containsKey("id")) {
+                    int id = Integer.parseInt(params.get("id"));
+                    Livro l = ctrl.buscarComIndiceBPlus(id);
+                    sendJson(ex, 200, "{\"metodo\":\"arvore_b_plus\",\"livro\":" + l.toString() + "}");
+                } else {
+                    sendJson(ex, 200,
+                            "{\"metodo\":\"arvore_b_plus\",\"estatisticas\":"
+                                    + toJsonObject(ctrl.obterEstatisticasBPlus()) + "}");
+                }
+                return;
+            }
+
             if ("GET".equals(method)) {
                 Map<String, String> params = queryParams(ex.getRequestURI());
                 if (params.containsKey("id")) {
-                    sendJson(ex, 200, ctrl.buscar(Integer.parseInt(params.get("id"))).toString());
+                    sendJson(ex, 200, ctrl.buscarComIndiceBPlus(Integer.parseInt(params.get("id"))).toString());
+                } else if ("externa".equalsIgnoreCase(params.getOrDefault("ordenacao", ""))) {
+                    String atributo = params.getOrDefault("atributo", "titulo");
+                    sendJson(ex, 200, toJsonArray(ctrl.listarOrdenadosExternamente(atributo)));
                 } else {
                     sendJson(ex, 200, toJsonArray(ctrl.listar()));
                 }
@@ -121,6 +169,25 @@ public class LivroHandler implements HttpHandler {
             sb.append(list.get(i).toString());
         }
         sb.append("]");
+        return sb.toString();
+    }
+
+    private String toJsonObject(Map<String, Object> map) {
+        StringBuilder sb = new StringBuilder("{");
+        int i = 0;
+        for (Map.Entry<String, Object> e : map.entrySet()) {
+            if (i++ > 0) sb.append(",");
+            sb.append("\"").append(escapeJson(e.getKey())).append("\":");
+            Object valor = e.getValue();
+            if (valor == null) {
+                sb.append("null");
+            } else if (valor instanceof Number || valor instanceof Boolean) {
+                sb.append(valor.toString());
+            } else {
+                sb.append("\"").append(escapeJson(valor.toString())).append("\"");
+            }
+        }
+        sb.append("}");
         return sb.toString();
     }
 }

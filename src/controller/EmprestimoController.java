@@ -1,25 +1,26 @@
 package controller;
 
-import dao.EmprestimoDAO;
-import dao.EmprestimoItemDAO;
-import dao.UsuarioDAO;
-import dao.LivroDAO;
 import dao.CupomDAO;
-import model.Emprestimo;
-import model.EmprestimoItem;
-import model.Cupom;
+import dao.EmprestimoDAO;
+import dao.EmprestimoItemDAOIndexado;
+import dao.LivroDAO;
+import dao.UsuarioDAO;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import model.Cupom;
+import model.Emprestimo;
+import model.EmprestimoItem;
 
 public class EmprestimoController {
 
     private final EmprestimoDAO emprestimoDAO;
-    private final EmprestimoItemDAO itemDAO;
+    private final EmprestimoItemDAOIndexado itemDAO;
     private final UsuarioDAO usuarioDAO;
     private final LivroDAO livroDAO;
     private final CupomDAO cupomDAO;
 
-    public EmprestimoController(EmprestimoDAO emprestimoDAO, EmprestimoItemDAO itemDAO,
+    public EmprestimoController(EmprestimoDAO emprestimoDAO, EmprestimoItemDAOIndexado itemDAO,
                                  UsuarioDAO usuarioDAO, LivroDAO livroDAO, CupomDAO cupomDAO) {
         this.emprestimoDAO = emprestimoDAO;
         this.itemDAO = itemDAO;
@@ -88,9 +89,68 @@ public class EmprestimoController {
         return itemDAO.buscarPorEmprestimo(idEmprestimo);
     }
 
+    public List<EmprestimoItem> listarTodosItens() throws IOException {
+        return itemDAO.listarAtivos();
+    }
+
+    public EmprestimoItem buscarItem(int idItem) throws IOException {
+        EmprestimoItem item = itemDAO.buscarPorId(idItem);
+        if (item == null) {
+            throw new IllegalArgumentException("Item com ID " + idItem + " não encontrado.");
+        }
+        return item;
+    }
+
+    public EmprestimoItem atualizarItem(int idItem, Integer novoIdEmprestimo, Integer novoIdLivro, Integer novaQuantidade)
+            throws IOException {
+        EmprestimoItem item = itemDAO.buscarPorId(idItem);
+        if (item == null) {
+            throw new IllegalArgumentException("Item com ID " + idItem + " não encontrado.");
+        }
+
+        int idEmprestimoFinal = item.getIdEmprestimo();
+        int idLivroFinal = item.getIdLivro();
+
+        if (novoIdEmprestimo != null) {
+            if (emprestimoDAO.buscarPorId(novoIdEmprestimo) == null) {
+                throw new IllegalArgumentException("Empréstimo com ID " + novoIdEmprestimo + " não encontrado.");
+            }
+            idEmprestimoFinal = novoIdEmprestimo;
+        }
+
+        if (novoIdLivro != null) {
+            if (livroDAO.buscarPorId(novoIdLivro) == null) {
+                throw new IllegalArgumentException("Livro com ID " + novoIdLivro + " não encontrado.");
+            }
+            idLivroFinal = novoIdLivro;
+        }
+
+        for (EmprestimoItem existente : itemDAO.buscarPorEmprestimo(idEmprestimoFinal)) {
+            if (existente.getId() != idItem && existente.getIdLivro() == idLivroFinal) {
+                throw new IllegalArgumentException("Este livro já está neste empréstimo.");
+            }
+        }
+
+        if (novaQuantidade != null) {
+            if (novaQuantidade <= 0) {
+                throw new IllegalArgumentException("Quantidade deve ser maior que zero.");
+            }
+            item.setQuantidade(novaQuantidade);
+        }
+
+        item.setIdEmprestimo(idEmprestimoFinal);
+        item.setIdLivro(idLivroFinal);
+        itemDAO.atualizar(item);
+        return item;
+    }
+
     public void removerItem(int idItem) throws IOException {
         boolean ok = itemDAO.excluir(idItem);
         if (!ok) throw new IllegalArgumentException("Item com ID " + idItem + " não encontrado.");
+    }
+
+    public Map<String, Object> obterEstatisticasIndiceItens() {
+        return itemDAO.obterEstatisticasIndice();
     }
 
     // ---- Cupom ----

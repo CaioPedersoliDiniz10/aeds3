@@ -1,9 +1,10 @@
 package dao;
 
-import model.EmprestimoItem;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import model.EmprestimoItem;
 
 /**
  * DAO para EmprestimoItem com índice Hash Extensível para otimizar buscas por idEmprestimo.
@@ -234,5 +235,9 @@ public class EmprestimoItemDAOIndexado {
             }
         }
         return false;
+    }
+
+    public Map<String, Object> obterEstatisticasIndice() {
+        return indiceEmprestimo.obterEstatisticas();
     }
 }

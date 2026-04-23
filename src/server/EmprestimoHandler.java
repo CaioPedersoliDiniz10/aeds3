@@ -2,12 +2,11 @@ package server;
 
 import com.sun.net.httpserver.*;
 import controller.EmprestimoController;
-import model.Emprestimo;
-import model.Cupom;
-
 import java.io.*;
 import java.net.URI;
 import java.util.*;
+import model.Cupom;
+import model.Emprestimo;
 
 /**
  * Rotas REST para /api/emprestimos
@@ -16,6 +15,19 @@ import java.util.*;
  *   POST   /api/emprestimos                   -> criar empréstimo
  *   PUT    /api/emprestimos?id=X              -> atualizar datas
  *   DELETE /api/emprestimos?id=X              -> excluir (lápide)
+ *
+ * Itens do relacionamento 1:N (emprestimo -> itens):
+ *   GET    /api/emprestimos/itens             -> listar todos os itens
+ *   GET    /api/emprestimos/itens?id=X        -> listar itens de um empréstimo
+ *   GET    /api/emprestimos/itens?itemId=Y    -> buscar item por ID
+ *   POST   /api/emprestimos/itens?id=X        -> adicionar item ao empréstimo X
+ *   PUT    /api/emprestimos/itens?itemId=Y    -> atualizar item
+ *   DELETE /api/emprestimos/itens?itemId=Y    -> remover item
+ *
+ * Consulta usando índice hash extensível:
+ *   GET    /api/emprestimos/indice?id=X
+ *   GET    /api/emprestimos/indice
+ *
  *   POST   /api/emprestimos/cupom?id=X        -> associar cupom ao empréstimo X
  *   GET    /api/emprestimos/cupom?id=X        -> buscar cupom do empréstimo X
  */
@@ -38,21 +50,60 @@ public class EmprestimoHandler implements HttpHandler {
 
             boolean isCupom = path.endsWith("/cupom");
             boolean isItens = path.endsWith("/itens");
+            boolean isIndice = path.endsWith("/indice");
+
+            if (isIndice) {
+                if (!"GET".equals(method)) {
+                    sendJson(ex, 405, "{\"erro\":\"Método não permitido.\"}");
+                    return;
+                }
+
+                Map<String, String> params = queryParams(ex.getRequestURI());
+                String indiceJson = toJsonObject(ctrl.obterEstatisticasIndiceItens());
+
+                if (params.containsKey("id")) {
+                    int idEmprestimo = Integer.parseInt(params.get("id"));
+                    String itensJson = toJsonArray(ctrl.listarItens(idEmprestimo));
+                    sendJson(ex, 200,
+                            "{\"metodo\":\"hash_extensivel\",\"idEmprestimo\":" + idEmprestimo
+                                    + ",\"indice\":" + indiceJson + ",\"itens\":" + itensJson + "}");
+                } else {
+                    sendJson(ex, 200,
+                            "{\"metodo\":\"hash_extensivel\",\"indice\":" + indiceJson + "}");
+                }
+                return;
+            }
 
             if (isItens) {
                 Map<String, String> params = queryParams(ex.getRequestURI());
 
                 if ("GET".equals(method)) {
-                    int id = Integer.parseInt(params.getOrDefault("id", "0"));
-                    sendJson(ex, 200, toJsonArray(ctrl.listarItens(id)));
+                    if (params.containsKey("itemId")) {
+                        int itemId = Integer.parseInt(params.get("itemId"));
+                        sendJson(ex, 200, ctrl.buscarItem(itemId).toString());
+                    } else if (params.containsKey("id")) {
+                        int idEmprestimo = Integer.parseInt(params.get("id"));
+                        sendJson(ex, 200, toJsonArray(ctrl.listarItens(idEmprestimo)));
+                    } else {
+                        sendJson(ex, 200, toJsonArray(ctrl.listarTodosItens()));
+                    }
 
                 } else if ("POST".equals(method)) {
-                    int id = Integer.parseInt(params.getOrDefault("id", "0"));
                     Map<String, String> b = parseBody(ex);
+                    int id = Integer.parseInt(params.getOrDefault("id", b.getOrDefault("idEmprestimo", "0")));
                     int idLivro = Integer.parseInt(b.getOrDefault("idLivro", "0"));
                     int quantidade = Integer.parseInt(b.getOrDefault("quantidade", "1"));
                     model.EmprestimoItem item = ctrl.adicionarItem(id, idLivro, quantidade);
                     sendJson(ex, 201, item.toString());
+
+                } else if ("PUT".equals(method)) {
+                    int itemId = Integer.parseInt(params.getOrDefault("itemId", "0"));
+                    Map<String, String> b = parseBody(ex);
+                    Integer idEmprestimo = parseOptionalInteger(b.get("idEmprestimo"));
+                    Integer idLivro = parseOptionalInteger(b.get("idLivro"));
+                    Integer quantidade = parseOptionalInteger(b.get("quantidade"));
+                    model.EmprestimoItem item = ctrl.atualizarItem(itemId, idEmprestimo, idLivro, quantidade);
+                    sendJson(ex, 200, item.toString());
 
                 } else if ("DELETE".equals(method)) {
                     int itemId = Integer.parseInt(params.getOrDefault("itemId", "0"));
@@ -174,5 +225,31 @@ public class EmprestimoHandler implements HttpHandler {
         }
         sb.append("]");
         return sb.toString();
+    }
+
+    private String toJsonObject(Map<String, Object> map) {
+        StringBuilder sb = new StringBuilder("{");
+        int i = 0;
+        for (Map.Entry<String, Object> e : map.entrySet()) {
+            if (i++ > 0) sb.append(",");
+            sb.append("\"").append(escapeJson(e.getKey())).append("\":");
+            Object valor = e.getValue();
+            if (valor == null) {
+                sb.append("null");
+            } else if (valor instanceof Number || valor instanceof Boolean) {
+                sb.append(valor.toString());
+            } else {
+                sb.append("\"").append(escapeJson(valor.toString())).append("\"");
+            }
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private Integer parseOptionalInteger(String valor) {
+        if (valor == null) return null;
+        String limpo = valor.trim();
+        if (limpo.isEmpty()) return null;
+        return Integer.parseInt(limpo);
     }
 }

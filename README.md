@@ -2,7 +2,23 @@
 ## Fase 2 - AED III
 
 ### ⭐ Resumo
-Sistema **CRUD completo** de biblioteca com **Hash Extensível** para otimização de relacionamento 1:N. Implementa arquitetura **MVC**, persistência em **arquivos binários com tamanho fixo** e interface **web responsiva**.
+Sistema de biblioteca com arquitetura **MVC**, persistencia em **arquivos binarios de tamanho fixo**, interface web e estruturas de dados para acesso eficiente.
+
+### Funcionalidades Entregues
+- CRUD de todas as tabelas: Usuario, Livro, Emprestimo, EmprestimoItem e Cupom.
+- Relacionamento 1:N: Emprestimo -> EmprestimoItem.
+- Consulta por indice com **Hash Extensivel** para itens por emprestimo.
+- **Ordenacao externa** por atributo em livros (titulo, autor, ano).
+- **Arvore B+ (inicial)** com insercao e busca exata por ID de livro.
+
+### Rotas de Demonstracao
+- Hash extensivel: `/api/emprestimos/indice?id={idEmprestimo}`
+- Ordenacao externa: `/api/livros/ordenacao-externa?atributo=titulo|autor|ano`
+- Arvore B+ busca: `/api/livros/bplus?id={idLivro}`
+- Arvore B+ estatisticas: `/api/livros/bplus`
+
+### Roteiro do Video
+- Ver roteiro em: `docs/ROTEIRO_VIDEO_DEMONSTRACAO.md`
 
 ---
 

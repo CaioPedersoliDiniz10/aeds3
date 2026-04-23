@@ -22,9 +22,9 @@
 
   <div id="alert-area"></div>
 
-  <!-- Associar Cupom -->
+  <!-- Criar -->
   <div class="card">
-    <h2>Associar Cupom a um Empréstimo</h2>
+    <h2>Cadastrar Novo Cupom</h2>
     <form id="form-criar">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
         <div class="form-group">
@@ -52,12 +52,19 @@
     </form>
   </div>
 
-  <!-- Consultar Cupom por Empréstimo -->
+  <!-- Consultar -->
   <div class="card">
-    <h2>Consultar Cupom de um Empréstimo</h2>
+    <h2>Consultar Cupom</h2>
     <div style="display:flex;gap:.75rem;align-items:flex-end;">
+      <div class="form-group" style="width:240px;margin:0;">
+        <label for="tipo-busca">Tipo da busca</label>
+        <select id="tipo-busca">
+          <option value="id">Por ID do cupom</option>
+          <option value="idEmprestimo">Por ID do empréstimo</option>
+        </select>
+      </div>
       <div class="form-group" style="flex:1;margin:0;">
-        <label for="busca-id">ID do Empréstimo</label>
+        <label for="busca-id">Valor</label>
         <input type="number" id="busca-id" placeholder="Digite o ID" min="1"/>
       </div>
       <button class="btn btn-primary" onclick="buscarCupom()">Buscar</button>
@@ -73,7 +80,7 @@
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>ID</th><th>Empréstimo</th><th>Tipo</th><th>Valor</th><th>Descrição</th></tr></thead>
+        <thead><tr><th>ID</th><th>Empréstimo</th><th>Tipo</th><th>Valor</th><th>Descrição</th><th>Ações</th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
       <div id="empty" class="empty hidden">Nenhum cupom registrado.</div>
@@ -81,51 +88,76 @@
   </div>
 </div>
 
-<script>
-  const API_EMP = 'http://localhost:8080/api/emprestimos';
-  const API_CUPOM_LIST = 'http://localhost:8080/api/emprestimos'; // cupons listados via DAO
+<!-- Modal de Edicao -->
+<div class="modal-backdrop hidden" id="modal">
+  <div class="modal">
+    <h2>Editar Cupom</h2>
+    <input type="hidden" id="edit-id"/>
+    <div class="form-group">
+      <label for="edit-tipo">Tipo</label>
+      <select id="edit-tipo">
+        <option value="DESCONTO">DESCONTO</option>
+        <option value="EXTENSAO">EXTENSAO</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="edit-valor">Valor</label>
+      <input type="number" id="edit-valor" step="0.01" min="0.01"/>
+    </div>
+    <div class="form-group">
+      <label for="edit-descricao">Descricao</label>
+      <input type="text" id="edit-descricao"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal()" style="background:var(--border);">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarEdicao()">Salvar</button>
+    </div>
+  </div>
+</div>
 
-  // Lista cupons lendo via endpoint de cupons do servidor
+<script>
+  const API = 'http://localhost:8080/api/cupons';
+
   async function carregar() {
-    // NOTE: precisamos de um endpoint dedicado para listar todos os cupons.
-    // Usamos a rota GET /api/emprestimos/cupom sem id para listar (se suportado),
-    // ou buscamos empréstimos e depois seus cupons:
     try {
-      const resEmp = await fetch(API_EMP);
-      const emprestimos = await resEmp.json();
+      const res = await fetch(API);
+      const cupons = await res.json();
       const tbody = document.getElementById('tbody');
       const empty = document.getElementById('empty');
       tbody.innerHTML = '';
-      let total = 0;
-      for (const e of emprestimos) {
-        const resCupom = await fetch(`${API_EMP}/cupom?id=${e.id}`);
-        if (resCupom.ok) {
-          const c = await resCupom.json();
-          total++;
-          tbody.innerHTML += `<tr>
-            <td>${c.id}</td>
-            <td>#${c.idEmprestimo}</td>
-            <td><span style="background:${c.tipo==='DESCONTO'?'#dbeafe':'#dcfce7'};padding:.2rem .5rem;border-radius:4px;font-size:.8rem;font-weight:600;">${esc(c.tipo)}</span></td>
-            <td>${c.valor}${c.tipo==='DESCONTO' ? '%' : ' dias'}</td>
-            <td>${esc(c.descricao)||'—'}</td>
-          </tr>`;
-        }
+
+      if (!cupons.length) {
+        empty.classList.remove('hidden');
+        return;
       }
-      if (!total) { empty.classList.remove('hidden'); }
-      else { empty.classList.add('hidden'); }
+
+      empty.classList.add('hidden');
+      cupons.forEach(c => {
+        tbody.innerHTML += `<tr>
+          <td>${c.id}</td>
+          <td>#${c.idEmprestimo}</td>
+          <td><span style="background:${c.tipo==='DESCONTO'?'#dbeafe':'#dcfce7'};padding:.2rem .5rem;border-radius:4px;font-size:.8rem;font-weight:600;">${esc(c.tipo)}</span></td>
+          <td>${c.valor}${c.tipo==='DESCONTO' ? '%' : ' dias'}</td>
+          <td>${esc(c.descricao) || '—'}</td>
+          <td>
+            <button class="btn btn-sm btn-primary" onclick='abrirModal(${c.id}, ${JSON.stringify(c.tipo || "")}, ${JSON.stringify(c.descricao || "")}, ${c.valor})'>Editar</button>
+            <button class="btn btn-sm btn-danger" onclick="excluir(${c.id})">Excluir</button>
+          </td>
+        </tr>`;
+      });
     } catch(err) { mostrarAlerta('error','Erro ao carregar cupons.'); }
   }
 
   document.getElementById('form-criar').addEventListener('submit', async e => {
     e.preventDefault();
-    const id   = document.getElementById('idEmprestimo').value;
     const body = new URLSearchParams({
+      idEmprestimo: document.getElementById('idEmprestimo').value,
       tipo:      document.getElementById('tipo').value,
       descricao: document.getElementById('descricao').value,
       valor:     document.getElementById('valor').value
     });
     try {
-      const res = await fetch(`${API_EMP}/cupom?id=${id}`, { method:'POST', body });
+      const res = await fetch(API, { method:'POST', body });
       const data = await res.json();
       if (res.ok) { mostrarAlerta('success','Cupom associado! ID do cupom: '+data.id); e.target.reset(); carregar(); }
       else mostrarAlerta('error', data.erro);
@@ -133,10 +165,13 @@
   });
 
   async function buscarCupom() {
-    const id = document.getElementById('busca-id').value;
-    if (!id) return;
+    const valor = document.getElementById('busca-id').value;
+    const tipoBusca = document.getElementById('tipo-busca').value;
+    if (!valor) return;
+
     try {
-      const res = await fetch(`${API_EMP}/cupom?id=${id}`);
+      const qs = tipoBusca === 'id' ? `id=${valor}` : `idEmprestimo=${valor}`;
+      const res = await fetch(`${API}?${qs}`);
       const data = await res.json();
       const div = document.getElementById('resultado-busca');
       if (res.ok) {
@@ -147,6 +182,57 @@
         div.innerHTML = `<div class="alert alert-error">${esc(data.erro)}</div>`;
       }
     } catch(e) {}
+  }
+
+  function abrirModal(id, tipo, descricao, valor) {
+    document.getElementById('edit-id').value = id;
+    document.getElementById('edit-tipo').value = tipo;
+    document.getElementById('edit-descricao').value = descricao;
+    document.getElementById('edit-valor').value = valor;
+    document.getElementById('modal').classList.remove('hidden');
+  }
+
+  function fecharModal() {
+    document.getElementById('modal').classList.add('hidden');
+  }
+
+  async function salvarEdicao() {
+    const id = document.getElementById('edit-id').value;
+    const body = new URLSearchParams({
+      tipo: document.getElementById('edit-tipo').value,
+      descricao: document.getElementById('edit-descricao').value,
+      valor: document.getElementById('edit-valor').value
+    });
+
+    try {
+      const res = await fetch(`${API}?id=${id}`, { method: 'PUT', body });
+      const data = await res.json();
+      if (res.ok) {
+        mostrarAlerta('success', 'Cupom atualizado com sucesso.');
+        fecharModal();
+        carregar();
+      } else {
+        mostrarAlerta('error', data.erro);
+      }
+    } catch (e) {
+      mostrarAlerta('error', 'Erro ao atualizar cupom.');
+    }
+  }
+
+  async function excluir(id) {
+    if (!confirm('Excluir cupom #' + id + '?')) return;
+    try {
+      const res = await fetch(`${API}?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) {
+        mostrarAlerta('success', data.mensagem);
+        carregar();
+      } else {
+        mostrarAlerta('error', data.erro);
+      }
+    } catch (e) {
+      mostrarAlerta('error', 'Erro ao excluir cupom.');
+    }
   }
 
   function mostrarAlerta(tipo, msg) {

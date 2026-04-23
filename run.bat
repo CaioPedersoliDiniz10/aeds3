@@ -14,6 +14,8 @@ javac -encoding UTF-8 -d %BIN% ^
   %SRC%\model\EmprestimoItem.java ^
   %SRC%\model\Cupom.java ^
   %SRC%\dao\HashExtensivel.java ^
+  %SRC%\dao\ArvoreBPlus.java ^
+  %SRC%\dao\OrdenacaoExternaLivro.java ^
   %SRC%\dao\UsuarioDAO.java ^
   %SRC%\dao\LivroDAO.java ^
   %SRC%\dao\EmprestimoDAO.java ^
@@ -22,10 +24,12 @@ javac -encoding UTF-8 -d %BIN% ^
   %SRC%\dao\CupomDAO.java ^
   %SRC%\controller\UsuarioController.java ^
   %SRC%\controller\LivroController.java ^
+  %SRC%\controller\CupomController.java ^
   %SRC%\controller\EmprestimoController.java ^
   %SRC%\server\StaticHandler.java ^
   %SRC%\server\UsuarioHandler.java ^
   %SRC%\server\LivroHandler.java ^
+  %SRC%\server\CupomHandler.java ^
   %SRC%\server\EmprestimoHandler.java ^
   %SRC%\server\AppServer.java
 

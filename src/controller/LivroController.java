@@ -1,9 +1,10 @@
 package controller;
 
 import dao.LivroDAO;
-import model.Livro;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import model.Livro;
 
 public class LivroController {
 
@@ -27,8 +28,26 @@ public class LivroController {
         return l;
     }
 
+    public Livro buscarComIndiceBPlus(int id) throws IOException {
+        Livro l = dao.buscarPorIdComIndice(id);
+        if (l == null) throw new IllegalArgumentException("Livro com ID " + id + " não encontrado.");
+        return l;
+    }
+
     public List<Livro> listar() throws IOException {
         return dao.listarAtivos();
+    }
+
+    public List<Livro> listarOrdenadosExternamente(String atributo) throws IOException {
+        return dao.listarAtivosOrdenadosExternamente(atributo);
+    }
+
+    public Map<String, Object> obterEstatisticasBPlus() {
+        return dao.obterEstatisticasIndiceBPlus();
+    }
+
+    public void reconstruirIndiceBPlus() throws IOException {
+        dao.reconstruirIndiceBPlus();
     }
 
     public Livro atualizar(int id, String novoTitulo, String novoAutor, Integer novoAno) throws IOException {

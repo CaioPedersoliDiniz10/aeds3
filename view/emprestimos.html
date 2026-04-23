@@ -72,6 +72,18 @@
     </div>
   </div>
 
+  <div class="card">
+    <h2>Consulta Usando Índice Hash Extensível</h2>
+    <div style="display:flex;gap:.75rem;align-items:flex-end;">
+      <div class="form-group" style="flex:1;margin:0;">
+        <label for="indice-id">ID do Empréstimo</label>
+        <input type="number" id="indice-id" placeholder="Digite o ID do empréstimo" min="1"/>
+      </div>
+      <button class="btn btn-primary" onclick="consultarIndice()">Consultar por índice</button>
+    </div>
+    <div id="resultado-indice" style="margin-top:1rem;"></div>
+  </div>
+
   <!-- 3. Consultar por ID -->
   <div class="card">
     <h2>Consultar Empréstimo por ID</h2>
@@ -142,6 +154,7 @@
             if (itens.length) {
               itensHtml = itens.map(i =>
                 `<span class="item-tag">📖 Livro #${i.idLivro} (x${i.quantidade})
+                  <button onclick="editarItem(${i.id}, ${i.idEmprestimo}, ${i.idLivro}, ${i.quantidade})" title="Editar">✎</button>
                   <button onclick="removerItem(${i.id})" title="Remover">✕</button>
                 </span>`
               ).join('');
@@ -205,6 +218,59 @@
       if (res.ok) { mostrarAlerta('success', data.mensagem); carregar(); }
       else mostrarAlerta('error', data.erro);
     } catch(e) { mostrarAlerta('error','Erro ao remover item.'); }
+  }
+
+  async function editarItem(itemId, idEmprestimoAtual, idLivroAtual, quantidadeAtual) {
+    const novoIdEmprestimo = prompt('ID do emprestimo:', idEmprestimoAtual);
+    if (novoIdEmprestimo === null) return;
+    const novoIdLivro = prompt('ID do livro:', idLivroAtual);
+    if (novoIdLivro === null) return;
+    const novaQuantidade = prompt('Quantidade:', quantidadeAtual);
+    if (novaQuantidade === null) return;
+
+    const body = new URLSearchParams({
+      idEmprestimo: novoIdEmprestimo,
+      idLivro: novoIdLivro,
+      quantidade: novaQuantidade
+    });
+
+    try {
+      const res = await fetch(`${API}/itens?itemId=${itemId}`, { method:'PUT', body });
+      const data = await res.json();
+      if (res.ok) {
+        mostrarAlerta('success', `Item #${data.id} atualizado com sucesso.`);
+        carregar();
+      } else {
+        mostrarAlerta('error', data.erro);
+      }
+    } catch (e) {
+      mostrarAlerta('error', 'Erro ao atualizar item.');
+    }
+  }
+
+  async function consultarIndice() {
+    const id = document.getElementById('indice-id').value;
+    if (!id) return;
+
+    try {
+      const res = await fetch(`${API}/indice?id=${id}`);
+      const data = await res.json();
+      const div = document.getElementById('resultado-indice');
+
+      if (!res.ok) {
+        div.innerHTML = `<div class="alert alert-error">${esc(data.erro || 'Erro na consulta por indice.')}</div>`;
+        return;
+      }
+
+      const stats = data.indice || {};
+      const itens = data.itens || [];
+      div.innerHTML = `<div class="alert alert-success">
+        Metodo: ${esc(data.metodo)} | Profundidade global: ${stats.profundidadeGlobal ?? '-'} | Diretorio: ${stats.tamanhoDirectorio ?? '-'} | Chaves: ${stats.totalChaves ?? '-'} | Valores: ${stats.totalValores ?? '-'}<br>
+        Itens encontrados: ${itens.length}
+      </div>`;
+    } catch (e) {
+      document.getElementById('resultado-indice').innerHTML = '<div class="alert alert-error">Erro na consulta por indice.</div>';
+    }
   }
 
   async function buscarPorId() {

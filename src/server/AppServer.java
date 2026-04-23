@@ -3,11 +3,8 @@ package server;
 import com.sun.net.httpserver.*;
 import controller.*;
 import dao.*;
-import dao.EmprestimoItemDAO;
-
 import java.io.*;
 import java.net.InetSocketAddress;
-import java.nio.file.*;
 
 public class AppServer {
 
@@ -21,12 +18,13 @@ public class AppServer {
         UsuarioDAO usuarioDAO           = new UsuarioDAO(DATA_DIR + "usuarios.dat");
         LivroDAO livroDAO               = new LivroDAO(DATA_DIR + "livros.dat");
         EmprestimoDAO empDAO            = new EmprestimoDAO(DATA_DIR + "emprestimos.dat");
-        EmprestimoItemDAO empItemDAO    = new EmprestimoItemDAO(DATA_DIR + "emprestimo_itens.dat");
+        EmprestimoItemDAOIndexado empItemDAO = new EmprestimoItemDAOIndexado(DATA_DIR + "emprestimo_itens.dat");
         CupomDAO cupomDAO               = new CupomDAO(DATA_DIR + "cupons.dat");
 
         // ---- Controller instances ----
         UsuarioController usuCtrl    = new UsuarioController(usuarioDAO);
         LivroController livCtrl      = new LivroController(livroDAO);
+        CupomController cupomCtrl    = new CupomController(cupomDAO, empDAO);
         EmprestimoController empCtrl = new EmprestimoController(empDAO, empItemDAO, usuarioDAO, livroDAO, cupomDAO);
 
         // ---- HTTP Server ----
@@ -39,6 +37,7 @@ public class AppServer {
         server.createContext("/api/usuarios",    new UsuarioHandler(usuCtrl));
         server.createContext("/api/livros",      new LivroHandler(livCtrl));
         server.createContext("/api/emprestimos", new EmprestimoHandler(empCtrl));
+        server.createContext("/api/cupons",      new CupomHandler(cupomCtrl));
 
         // Live reload endpoint — retorna o timestamp de início do servidor
         server.createContext("/api/livereload", exchange -> {

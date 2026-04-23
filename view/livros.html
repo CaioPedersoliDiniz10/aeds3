@@ -44,6 +44,13 @@
   <div class="card">
     <h2>Consultar por ID</h2>
     <div style="display:flex;gap:.75rem;align-items:flex-end;">
+      <div class="form-group" style="width:220px;margin:0;">
+        <label for="busca-modo">Modo de busca</label>
+        <select id="busca-modo">
+          <option value="normal">Padrao</option>
+          <option value="bplus">Indice Arvore B+</option>
+        </select>
+      </div>
       <div class="form-group" style="flex:1;margin:0;">
         <label for="busca-id">ID do Livro</label>
         <input type="number" id="busca-id" placeholder="Digite o ID" min="1"/>
@@ -51,6 +58,17 @@
       <button class="btn btn-primary" onclick="buscarPorId()">Buscar</button>
     </div>
     <div id="resultado-busca" style="margin-top:1rem;"></div>
+  </div>
+
+  <div class="card">
+    <h2>Ordenacao Externa e Arvore B+</h2>
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+      <button class="btn btn-primary btn-sm" onclick="carregarOrdenacaoExterna('titulo')">Ordenacao externa por titulo</button>
+      <button class="btn btn-primary btn-sm" onclick="carregarOrdenacaoExterna('ano')">Ordenacao externa por ano</button>
+      <button class="btn btn-success btn-sm" onclick="carregar()">Voltar lista padrao</button>
+      <button class="btn btn-primary btn-sm" onclick="verEstatisticasBPlus()">Ver estatisticas B+</button>
+    </div>
+    <div id="info-indices" style="margin-top:1rem;"></div>
   </div>
 
   <div class="card">
@@ -85,14 +103,20 @@
 
 <script>
   const API = 'http://localhost:8080/api/livros';
+  let ultimaOrdenacao = '';
 
-  async function carregar() {
+  async function carregar(atributoOrdenacao = '') {
     try {
-      const res = await fetch(API);
+      const url = atributoOrdenacao
+        ? `${API}/ordenacao-externa?atributo=${encodeURIComponent(atributoOrdenacao)}`
+        : API;
+      const res = await fetch(url);
       const lista = await res.json();
       const tbody = document.getElementById('tbody');
       const empty = document.getElementById('empty');
       tbody.innerHTML = '';
+      ultimaOrdenacao = atributoOrdenacao;
+
       if (!lista.length) { empty.classList.remove('hidden'); return; }
       empty.classList.add('hidden');
       lista.forEach(l => {
@@ -104,7 +128,17 @@
           </td>
         </tr>`;
       });
+
+      if (atributoOrdenacao) {
+        document.getElementById('info-indices').innerHTML = `<div class="alert alert-success">Lista carregada com ordenacao externa por <strong>${esc(atributoOrdenacao)}</strong>.</div>`;
+      } else {
+        document.getElementById('info-indices').innerHTML = '';
+      }
     } catch(e) { mostrarAlerta('error','Erro ao carregar livros.'); }
+  }
+
+  async function carregarOrdenacaoExterna(atributo) {
+    await carregar(atributo);
   }
 
   document.getElementById('form-criar').addEventListener('submit', async e => {
@@ -124,14 +158,40 @@
 
   async function buscarPorId() {
     const id = document.getElementById('busca-id').value;
+    const modo = document.getElementById('busca-modo').value;
     if (!id) return;
     try {
-      const res = await fetch(`${API}?id=${id}`);
+      const url = modo === 'bplus' ? `${API}/bplus?id=${id}` : `${API}?id=${id}`;
+      const res = await fetch(url);
       const data = await res.json();
       const div = document.getElementById('resultado-busca');
-      if (res.ok) div.innerHTML = `<div class="alert alert-success">ID: ${data.id} | ${esc(data.titulo)} | ${esc(data.autor)} | ${data.ano}</div>`;
-      else div.innerHTML = `<div class="alert alert-error">${esc(data.erro)}</div>`;
+      if (res.ok) {
+        const livro = modo === 'bplus' ? data.livro : data;
+        const metodo = modo === 'bplus' ? 'Arvore B+' : 'Busca padrao';
+        div.innerHTML = `<div class="alert alert-success">[${metodo}] ID: ${livro.id} | ${esc(livro.titulo)} | ${esc(livro.autor)} | ${livro.ano}</div>`;
+      } else {
+        div.innerHTML = `<div class="alert alert-error">${esc(data.erro)}</div>`;
+      }
     } catch(e) {}
+  }
+
+  async function verEstatisticasBPlus() {
+    try {
+      const res = await fetch(`${API}/bplus`);
+      const data = await res.json();
+      if (!res.ok) {
+        mostrarAlerta('error', data.erro || 'Erro ao consultar Arvore B+.');
+        return;
+      }
+
+      const s = data.estatisticas || {};
+      document.getElementById('info-indices').innerHTML = `<div class="alert alert-success">
+        <strong>Indice Arvore B+</strong><br>
+        Ordem: ${s.ordem ?? '-'} | Altura: ${s.altura ?? '-'} | Nos: ${s.totalNos ?? '-'} | Folhas: ${s.totalFolhas ?? '-'} | Chaves: ${s.totalChaves ?? '-'}
+      </div>`;
+    } catch (e) {
+      mostrarAlerta('error', 'Erro ao consultar estatisticas da Arvore B+.');
+    }
   }
 
   async function excluir(id) {
