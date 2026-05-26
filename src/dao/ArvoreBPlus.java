@@ -56,6 +56,35 @@ public class ArvoreBPlus {
         return null;
     }
 
+    /**
+     * Busca por intervalo [chaveMin, chaveMax] e retorna os valores (offsets)
+     * em ordem crescente de chave.
+     */
+    public List<Long> buscarIntervalo(int chaveMin, int chaveMax) {
+        if (chaveMin > chaveMax) {
+            return Collections.emptyList();
+        }
+
+        List<Long> valores = new ArrayList<>();
+        No folha = localizarFolha(raiz, chaveMin);
+
+        while (folha != null) {
+            for (int i = 0; i < folha.chaves.size(); i++) {
+                int chave = folha.chaves.get(i);
+                if (chave < chaveMin) {
+                    continue;
+                }
+                if (chave > chaveMax) {
+                    return valores;
+                }
+                valores.add(folha.valores.get(i));
+            }
+            folha = folha.proximo;
+        }
+
+        return valores;
+    }
+
     public Map<String, Object> obterEstatisticas() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("ordem", ordem);

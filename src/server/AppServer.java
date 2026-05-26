@@ -18,7 +18,8 @@ public class AppServer {
         UsuarioDAO usuarioDAO           = new UsuarioDAO(DATA_DIR + "usuarios.dat");
         LivroDAO livroDAO               = new LivroDAO(DATA_DIR + "livros.dat");
         EmprestimoDAO empDAO            = new EmprestimoDAO(DATA_DIR + "emprestimos.dat");
-        EmprestimoItemDAOIndexado empItemDAO = new EmprestimoItemDAOIndexado(DATA_DIR + "emprestimo_itens.dat");
+        // Tabela associativa N:N (PK composta idEmprestimo+idLivro)
+        EmprestimoItemDAOIndexado empItemDAO = new EmprestimoItemDAOIndexado(DATA_DIR + "emprestimo_livros.dat");
         CupomDAO cupomDAO               = new CupomDAO(DATA_DIR + "cupons.dat");
 
         // ---- Controller instances ----
@@ -36,6 +37,7 @@ public class AppServer {
         // API endpoints
         server.createContext("/api/usuarios",    new UsuarioHandler(usuCtrl));
         server.createContext("/api/livros",      new LivroHandler(livCtrl));
+        server.createContext("/api/livros/emprestimos", new LivroEmprestimosHandler(empCtrl));
         server.createContext("/api/emprestimos", new EmprestimoHandler(empCtrl));
         server.createContext("/api/cupons",      new CupomHandler(cupomCtrl));
 

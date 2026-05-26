@@ -7,7 +7,6 @@ import java.io.*;
  * Relacionamento N:N entre Emprestimo e Livro.
  */
 public class EmprestimoItem implements Serializable {
-    private int id;
     private int idEmprestimo;
     private int idLivro;
     private int quantidade;
@@ -15,20 +14,26 @@ public class EmprestimoItem implements Serializable {
 
     public EmprestimoItem() {}
 
-    public EmprestimoItem(int id, int idEmprestimo, int idLivro, int quantidade) {
-        this.id = id;
+    public EmprestimoItem(int idEmprestimo, int idLivro, int quantidade) {
         this.idEmprestimo = idEmprestimo;
         this.idLivro = idLivro;
         this.quantidade = quantidade;
         this.lapide = false;
     }
 
-    // lapide(1) + id(4) + idEmprestimo(4) + idLivro(4) + quantidade(4) = 17 bytes
-    public static final int TAMANHO = 1 + 4 + 4 + 4 + 4;
+    /**
+     * ID sintético apenas para compatibilidade com a API/UI existente.
+     * A chave primária real (composta) é (idEmprestimo, idLivro).
+     */
+    public int getId() {
+        return idEmprestimo * 1_000_000 + idLivro;
+    }
+
+    // lapide(1) + idEmprestimo(4) + idLivro(4) + quantidade(4) = 13 bytes
+    public static final int TAMANHO = 1 + 4 + 4 + 4;
 
     public void serializar(DataOutputStream dos) throws IOException {
         dos.writeBoolean(lapide);
-        dos.writeInt(id);
         dos.writeInt(idEmprestimo);
         dos.writeInt(idLivro);
         dos.writeInt(quantidade);
@@ -37,15 +42,12 @@ public class EmprestimoItem implements Serializable {
     public static EmprestimoItem desserializar(DataInputStream dis) throws IOException {
         EmprestimoItem item = new EmprestimoItem();
         item.lapide = dis.readBoolean();
-        item.id = dis.readInt();
         item.idEmprestimo = dis.readInt();
         item.idLivro = dis.readInt();
         item.quantidade = dis.readInt();
         return item;
     }
 
-    public int getId() { return id; }
-    public void setId(int id) { this.id = id; }
     public int getIdEmprestimo() { return idEmprestimo; }
     public void setIdEmprestimo(int idEmprestimo) { this.idEmprestimo = idEmprestimo; }
     public int getIdLivro() { return idLivro; }
@@ -57,7 +59,7 @@ public class EmprestimoItem implements Serializable {
 
     @Override
     public String toString() {
-        return "{\"id\":" + id + ",\"idEmprestimo\":" + idEmprestimo
+        return "{\"id\":" + getId() + ",\"idEmprestimo\":" + idEmprestimo
                 + ",\"idLivro\":" + idLivro + ",\"quantidade\":" + quantidade
                 + ",\"lapide\":" + lapide + "}";
     }

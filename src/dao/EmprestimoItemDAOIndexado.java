@@ -15,13 +15,22 @@ import model.EmprestimoItem;
 public class EmprestimoItemDAOIndexado {
 
     private final String caminho;
-    private final String caminhoIndice;
-    private HashExtensivel indiceEmprestimo; // índice: idEmprestimo -> posições dos itens
+    private final String caminhoIndiceEmprestimo;
+    private final String caminhoIndiceLivro;
+    private HashExtensivel indiceEmprestimo; // índice: idEmprestimo -> posições (offsets)
+    private HashExtensivel indiceLivro;      // índice: idLivro -> posições (offsets)
+    private final ArvoreBPlus indiceOrdenadoPorLivro; // índice ordenado: (idEmprestimo,idLivro) -> posição do item
+
+    // Multiplicador para compor chave (idEmprestimo,idLivro) em um int.
+    // Assumimos idLivro < 1_000_000 (suficiente para o escopo do trabalho).
+    private static final int CHAVE_MULT = 1_000_000;
     private static final int HEADER_SIZE = 8;
 
     public EmprestimoItemDAOIndexado(String caminho) {
         this.caminho = caminho;
-        this.caminhoIndice = caminho + ".idx";
+        this.caminhoIndiceEmprestimo = caminho + ".idx";
+        this.caminhoIndiceLivro = caminho + ".livro.idx";
+        this.indiceOrdenadoPorLivro = new ArvoreBPlus(8);
         inicializarArquivo();
         carregarIndice();
     }
@@ -39,23 +48,37 @@ public class EmprestimoItemDAOIndexado {
     }
 
     private void carregarIndice() {
-        File f = new File(caminhoIndice);
-        if (f.exists()) {
+        File fEmp = new File(caminhoIndiceEmprestimo);
+        if (fEmp.exists()) {
             try {
-                indiceEmprestimo = HashExtensivel.carregar(caminhoIndice);
+                indiceEmprestimo = HashExtensivel.carregar(caminhoIndiceEmprestimo);
             } catch (IOException | ClassNotFoundException e) {
                 indiceEmprestimo = new HashExtensivel();
-                reconstruirIndice();
             }
         } else {
             indiceEmprestimo = new HashExtensivel();
-            reconstruirIndice();
         }
+
+        File fLiv = new File(caminhoIndiceLivro);
+        if (fLiv.exists()) {
+            try {
+                indiceLivro = HashExtensivel.carregar(caminhoIndiceLivro);
+            } catch (IOException | ClassNotFoundException e) {
+                indiceLivro = new HashExtensivel();
+            }
+        } else {
+            indiceLivro = new HashExtensivel();
+        }
+
+        // Sempre sincroniza índices a partir do .dat para evitar .idx desatualizado.
+        reconstruirIndice();
     }
 
     private void reconstruirIndice() {
         try {
             indiceEmprestimo = new HashExtensivel();
+            indiceLivro = new HashExtensivel();
+            indiceOrdenadoPorLivro.limpar();
             int[] cab = lerCabecalho();
             try (DataInputStream dis = new DataInputStream(new FileInputStream(caminho))) {
                 dis.skipBytes(HEADER_SIZE);
@@ -66,6 +89,8 @@ public class EmprestimoItemDAOIndexado {
                     if (!item.isLapide()) {
                         long pos = HEADER_SIZE + (long) i * EmprestimoItem.TAMANHO;
                         indiceEmprestimo.inserir(item.getIdEmprestimo(), pos);
+                        indiceLivro.inserir(item.getIdLivro(), pos);
+                        indiceOrdenadoPorLivro.inserir(chaveEmprestimoLivro(item.getIdEmprestimo(), item.getIdLivro()), pos);
                     }
                 }
             }
@@ -75,9 +100,20 @@ public class EmprestimoItemDAOIndexado {
         }
     }
 
+    private int chaveEmprestimoLivro(int idEmprestimo, int idLivro) {
+        return idEmprestimo * CHAVE_MULT + idLivro;
+    }
+
+    private int[] parseChaveCompostaFromIdSintetico(int idSintetico) {
+        int idEmprestimo = idSintetico / CHAVE_MULT;
+        int idLivro = idSintetico % CHAVE_MULT;
+        return new int[]{idEmprestimo, idLivro};
+    }
+
     private void salvarIndice() {
         try {
-            indiceEmprestimo.salvar(caminhoIndice);
+            indiceEmprestimo.salvar(caminhoIndiceEmprestimo);
+            indiceLivro.salvar(caminhoIndiceLivro);
         } catch (IOException e) {
             System.err.println("Erro ao salvar índice: " + e.getMessage());
         }
@@ -103,9 +139,6 @@ public class EmprestimoItemDAOIndexado {
 
     public EmprestimoItem criar(EmprestimoItem item) throws IOException {
         int[] cab = lerCabecalho();
-        int novoId = cab[0] + 1;
-        item.setId(novoId);
-
         long pos = offsetRegistro(cab[1]);
         try (RandomAccessFile raf = new RandomAccessFile(caminho, "rw")) {
             raf.seek(pos);
@@ -115,26 +148,42 @@ public class EmprestimoItemDAOIndexado {
             dos.flush();
             raf.write(baos.toByteArray());
         }
-        atualizarCabecalho(novoId, cab[1] + 1);
+        // Mantém padrão de cabeçalho (ultimoId,total), mas ultimoId não é usado em PK composta.
+        atualizarCabecalho(0, cab[1] + 1);
         
         // Atualizar índice
         indiceEmprestimo.inserir(item.getIdEmprestimo(), pos);
+        indiceLivro.inserir(item.getIdLivro(), pos);
+        indiceOrdenadoPorLivro.inserir(chaveEmprestimoLivro(item.getIdEmprestimo(), item.getIdLivro()), pos);
         salvarIndice();
         
         return item;
     }
 
     public EmprestimoItem buscarPorId(int id) throws IOException {
-        int[] cab = lerCabecalho();
-        try (DataInputStream dis = new DataInputStream(new FileInputStream(caminho))) {
-            dis.skipBytes(HEADER_SIZE);
-            for (int i = 0; i < cab[1]; i++) {
+        int[] chave = parseChaveCompostaFromIdSintetico(id);
+        return buscarPorChaveComposta(chave[0], chave[1]);
+    }
+
+    public EmprestimoItem buscarPorChaveComposta(int idEmprestimo, int idLivro) throws IOException {
+        List<Long> posicoes = indiceEmprestimo.buscar(idEmprestimo);
+        if (posicoes.isEmpty()) {
+            return null;
+        }
+
+        try (RandomAccessFile raf = new RandomAccessFile(caminho, "r")) {
+            for (long pos : posicoes) {
+                if (pos < HEADER_SIZE) continue;
+                raf.seek(pos);
                 byte[] buf = new byte[EmprestimoItem.TAMANHO];
-                if (dis.read(buf) < EmprestimoItem.TAMANHO) break;
+                if (raf.read(buf) != EmprestimoItem.TAMANHO) continue;
                 EmprestimoItem item = EmprestimoItem.desserializar(new DataInputStream(new ByteArrayInputStream(buf)));
-                if (!item.isLapide() && item.getId() == id) return item;
+                if (!item.isLapide() && item.getIdEmprestimo() == idEmprestimo && item.getIdLivro() == idLivro) {
+                    return item;
+                }
             }
         }
+
         return null;
     }
 
@@ -145,9 +194,10 @@ public class EmprestimoItemDAOIndexado {
     public List<EmprestimoItem> buscarPorEmprestimo(int idEmprestimo) throws IOException {
         List<EmprestimoItem> lista = new ArrayList<>();
         List<Long> posicoes = indiceEmprestimo.buscar(idEmprestimo);
-        
-        for (long pos : posicoes) {
-            try (RandomAccessFile raf = new RandomAccessFile(caminho, "r")) {
+
+        try (RandomAccessFile raf = new RandomAccessFile(caminho, "r")) {
+            for (long pos : posicoes) {
+                if (pos < HEADER_SIZE) continue;
                 raf.seek(pos);
                 byte[] buf = new byte[EmprestimoItem.TAMANHO];
                 if (raf.read(buf) == EmprestimoItem.TAMANHO) {
@@ -159,6 +209,60 @@ public class EmprestimoItemDAOIndexado {
             }
         }
         
+        return lista;
+    }
+
+    /**
+     * Acesso pelo outro lado do N:N: listar todos os empréstimos que contêm um livro.
+     */
+    public List<EmprestimoItem> buscarPorLivro(int idLivro) throws IOException {
+        List<EmprestimoItem> lista = new ArrayList<>();
+        List<Long> posicoes = indiceLivro.buscar(idLivro);
+
+        try (RandomAccessFile raf = new RandomAccessFile(caminho, "r")) {
+            for (long pos : posicoes) {
+                if (pos < HEADER_SIZE) continue;
+                raf.seek(pos);
+                byte[] buf = new byte[EmprestimoItem.TAMANHO];
+                if (raf.read(buf) == EmprestimoItem.TAMANHO) {
+                    EmprestimoItem item = EmprestimoItem.desserializar(new DataInputStream(new ByteArrayInputStream(buf)));
+                    if (!item.isLapide()) {
+                        lista.add(item);
+                    }
+                }
+            }
+        }
+
+        return lista;
+    }
+
+    /**
+     * Listagem ordenada por idLivro usando Árvore B+.
+     * Retorna apenas itens ativos (sem lápide).
+     */
+    public List<EmprestimoItem> buscarPorEmprestimoOrdenadoPorLivro(int idEmprestimo) throws IOException {
+        int min = chaveEmprestimoLivro(idEmprestimo, 0);
+        int max = chaveEmprestimoLivro(idEmprestimo, CHAVE_MULT - 1);
+
+        List<EmprestimoItem> lista = new ArrayList<>();
+        List<Long> posicoesOrdenadas = indiceOrdenadoPorLivro.buscarIntervalo(min, max);
+
+        try (RandomAccessFile raf = new RandomAccessFile(caminho, "r")) {
+            for (long pos : posicoesOrdenadas) {
+                if (pos < HEADER_SIZE) {
+                    continue;
+                }
+                raf.seek(pos);
+                byte[] buf = new byte[EmprestimoItem.TAMANHO];
+                if (raf.read(buf) == EmprestimoItem.TAMANHO) {
+                    EmprestimoItem item = EmprestimoItem.desserializar(new DataInputStream(new ByteArrayInputStream(buf)));
+                    if (!item.isLapide() && item.getIdEmprestimo() == idEmprestimo) {
+                        lista.add(item);
+                    }
+                }
+            }
+        }
+
         return lista;
     }
 
@@ -178,18 +282,28 @@ public class EmprestimoItemDAOIndexado {
     }
 
     public boolean excluir(int id) throws IOException {
-        int[] cab = lerCabecalho();
+        int[] chave = parseChaveCompostaFromIdSintetico(id);
+        return excluirPorChaveComposta(chave[0], chave[1]);
+    }
+
+    public boolean excluirPorChaveComposta(int idEmprestimo, int idLivro) throws IOException {
+        List<Long> posicoes = indiceEmprestimo.buscar(idEmprestimo);
+        if (posicoes.isEmpty()) {
+            return false;
+        }
+
         try (RandomAccessFile raf = new RandomAccessFile(caminho, "rw")) {
-            for (int i = 0; i < cab[1]; i++) {
-                long pos = offsetRegistro(i);
+            for (long pos : new ArrayList<>(posicoes)) {
+                if (pos < HEADER_SIZE) continue;
                 raf.seek(pos);
                 byte[] buf = new byte[EmprestimoItem.TAMANHO];
-                raf.readFully(buf);
+                if (raf.read(buf) != EmprestimoItem.TAMANHO) continue;
                 EmprestimoItem item = EmprestimoItem.desserializar(new DataInputStream(new ByteArrayInputStream(buf)));
-                if (!item.isLapide() && item.getId() == id) {
-                    // Remover do índice antes de marcar como lapide
-                    indiceEmprestimo.remover(item.getIdEmprestimo(), pos);
-                    
+                if (!item.isLapide() && item.getIdEmprestimo() == idEmprestimo && item.getIdLivro() == idLivro) {
+                    indiceEmprestimo.remover(idEmprestimo, pos);
+                    indiceLivro.remover(idLivro, pos);
+                    indiceOrdenadoPorLivro.inserir(chaveEmprestimoLivro(idEmprestimo, idLivro), -1L);
+
                     item.setLapide(true);
                     raf.seek(pos);
                     ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -197,43 +311,91 @@ public class EmprestimoItemDAOIndexado {
                     item.serializar(dos);
                     dos.flush();
                     raf.write(baos.toByteArray());
-                    
+
                     salvarIndice();
                     return true;
                 }
             }
         }
+
         return false;
     }
 
-    public boolean atualizar(EmprestimoItem atualizado) throws IOException {
-        int[] cab = lerCabecalho();
+    /**
+     * Exclusão lógica (lápide) em cascata: remove todos os itens de um empréstimo.
+     * Mantém o índice hash consistente e invalida as chaves no índice B+.
+     */
+    public int excluirPorEmprestimo(int idEmprestimo) throws IOException {
+        List<Long> posicoes = indiceEmprestimo.buscar(idEmprestimo);
+        if (posicoes.isEmpty()) {
+            return 0;
+        }
+
+        int removidos = 0;
         try (RandomAccessFile raf = new RandomAccessFile(caminho, "rw")) {
-            for (int i = 0; i < cab[1]; i++) {
-                long pos = offsetRegistro(i);
+            for (long pos : new ArrayList<>(posicoes)) {
                 raf.seek(pos);
                 byte[] buf = new byte[EmprestimoItem.TAMANHO];
-                raf.readFully(buf);
+                if (raf.read(buf) != EmprestimoItem.TAMANHO) {
+                    continue;
+                }
                 EmprestimoItem item = EmprestimoItem.desserializar(new DataInputStream(new ByteArrayInputStream(buf)));
-                if (!item.isLapide() && item.getId() == atualizado.getId()) {
-                    // Se mudou o idEmprestimo, atualizar índice
-                    if (item.getIdEmprestimo() != atualizado.getIdEmprestimo()) {
-                        indiceEmprestimo.remover(item.getIdEmprestimo(), pos);
-                        indiceEmprestimo.inserir(atualizado.getIdEmprestimo(), pos);
-                    }
-                    
+                if (item.isLapide() || item.getIdEmprestimo() != idEmprestimo) {
+                    continue;
+                }
+
+                indiceEmprestimo.remover(idEmprestimo, pos);
+                indiceLivro.remover(item.getIdLivro(), pos);
+                indiceOrdenadoPorLivro.inserir(chaveEmprestimoLivro(item.getIdEmprestimo(), item.getIdLivro()), -1L);
+
+                item.setLapide(true);
+                raf.seek(pos);
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                DataOutputStream dos = new DataOutputStream(baos);
+                item.serializar(dos);
+                dos.flush();
+                raf.write(baos.toByteArray());
+                removidos++;
+            }
+        }
+
+        salvarIndice();
+        return removidos;
+    }
+
+    public boolean atualizar(EmprestimoItem atualizado) throws IOException {
+        // Em PK composta, não permitimos alterar (idEmprestimo,idLivro) via update.
+        // Atualização suportada: quantidade.
+        int idEmprestimo = atualizado.getIdEmprestimo();
+        int idLivro = atualizado.getIdLivro();
+
+        List<Long> posicoes = indiceEmprestimo.buscar(idEmprestimo);
+        if (posicoes.isEmpty()) {
+            return false;
+        }
+
+        try (RandomAccessFile raf = new RandomAccessFile(caminho, "rw")) {
+            for (long pos : posicoes) {
+                if (pos < HEADER_SIZE) continue;
+                raf.seek(pos);
+                byte[] buf = new byte[EmprestimoItem.TAMANHO];
+                if (raf.read(buf) != EmprestimoItem.TAMANHO) continue;
+                EmprestimoItem item = EmprestimoItem.desserializar(new DataInputStream(new ByteArrayInputStream(buf)));
+                if (!item.isLapide() && item.getIdEmprestimo() == idEmprestimo && item.getIdLivro() == idLivro) {
+                    item.setQuantidade(atualizado.getQuantidade());
                     raf.seek(pos);
                     ByteArrayOutputStream baos = new ByteArrayOutputStream();
                     DataOutputStream dos = new DataOutputStream(baos);
-                    atualizado.serializar(dos);
+                    item.serializar(dos);
                     dos.flush();
                     raf.write(baos.toByteArray());
-                    
+
                     salvarIndice();
                     return true;
                 }
             }
         }
+
         return false;
     }
 

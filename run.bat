@@ -29,6 +29,7 @@ javac -encoding UTF-8 -d %BIN% ^
   %SRC%\server\StaticHandler.java ^
   %SRC%\server\UsuarioHandler.java ^
   %SRC%\server\LivroHandler.java ^
+  %SRC%\server\LivroEmprestimosHandler.java ^
   %SRC%\server\CupomHandler.java ^
   %SRC%\server\EmprestimoHandler.java ^
   %SRC%\server\AppServer.java

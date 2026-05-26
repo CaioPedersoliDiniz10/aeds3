@@ -6,8 +6,11 @@ import dao.EmprestimoItemDAOIndexado;
 import dao.LivroDAO;
 import dao.UsuarioDAO;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import model.Cupom;
 import model.Emprestimo;
 import model.EmprestimoItem;
@@ -63,6 +66,13 @@ public class EmprestimoController {
     }
 
     public void excluir(int id) throws IOException {
+        if (emprestimoDAO.buscarPorId(id) == null) {
+            throw new IllegalArgumentException("Empréstimo com ID " + id + " não encontrado.");
+        }
+
+        // Exclusão em cascata (soft): marca itens do empréstimo como lápide.
+        itemDAO.excluirPorEmprestimo(id);
+
         boolean ok = emprestimoDAO.excluir(id);
         if (!ok) throw new IllegalArgumentException("Empréstimo com ID " + id + " não encontrado.");
     }
@@ -80,17 +90,42 @@ public class EmprestimoController {
             if (existente.getIdLivro() == idLivro)
                 throw new IllegalArgumentException("Este livro já está neste empréstimo.");
         }
-        return itemDAO.criar(new EmprestimoItem(0, idEmprestimo, idLivro, quantidade));
+        return itemDAO.criar(new EmprestimoItem(idEmprestimo, idLivro, quantidade));
     }
 
     public List<EmprestimoItem> listarItens(int idEmprestimo) throws IOException {
         if (emprestimoDAO.buscarPorId(idEmprestimo) == null)
             throw new IllegalArgumentException("Empréstimo com ID " + idEmprestimo + " não encontrado.");
-        return itemDAO.buscarPorEmprestimo(idEmprestimo);
+        // Listagem ordenada usando Árvore B+ (por idLivro)
+        return itemDAO.buscarPorEmprestimoOrdenadoPorLivro(idEmprestimo);
     }
 
     public List<EmprestimoItem> listarTodosItens() throws IOException {
         return itemDAO.listarAtivos();
+    }
+
+    /**
+     * Acesso pelo outro lado do N:N: listar todos os empréstimos que contêm um livro.
+     */
+    public List<Emprestimo> listarEmprestimosQueContemLivro(int idLivro) throws IOException {
+        if (livroDAO.buscarPorId(idLivro) == null) {
+            throw new IllegalArgumentException("Livro com ID " + idLivro + " não encontrado.");
+        }
+
+        List<EmprestimoItem> vinculos = itemDAO.buscarPorLivro(idLivro);
+        Set<Integer> ids = new LinkedHashSet<>();
+        for (EmprestimoItem v : vinculos) {
+            ids.add(v.getIdEmprestimo());
+        }
+
+        List<Emprestimo> lista = new ArrayList<>();
+        for (int idEmp : ids) {
+            Emprestimo e = emprestimoDAO.buscarPorId(idEmp);
+            if (e != null && !e.isLapide()) {
+                lista.add(e);
+            }
+        }
+        return lista;
     }
 
     public EmprestimoItem buscarItem(int idItem) throws IOException {
@@ -108,40 +143,21 @@ public class EmprestimoController {
             throw new IllegalArgumentException("Item com ID " + idItem + " não encontrado.");
         }
 
-        int idEmprestimoFinal = item.getIdEmprestimo();
-        int idLivroFinal = item.getIdLivro();
-
-        if (novoIdEmprestimo != null) {
-            if (emprestimoDAO.buscarPorId(novoIdEmprestimo) == null) {
-                throw new IllegalArgumentException("Empréstimo com ID " + novoIdEmprestimo + " não encontrado.");
-            }
-            idEmprestimoFinal = novoIdEmprestimo;
+        // PK composta (idEmprestimo,idLivro): nesta fase não permitimos trocar as chaves via update.
+        if (novoIdEmprestimo != null || novoIdLivro != null) {
+            throw new IllegalArgumentException("Não é permitido alterar idEmprestimo/idLivro do item (chave composta). Remova e adicione novamente.");
         }
 
-        if (novoIdLivro != null) {
-            if (livroDAO.buscarPorId(novoIdLivro) == null) {
-                throw new IllegalArgumentException("Livro com ID " + novoIdLivro + " não encontrado.");
-            }
-            idLivroFinal = novoIdLivro;
+        if (novaQuantidade == null) {
+            return item;
+        }
+        if (novaQuantidade <= 0) {
+            throw new IllegalArgumentException("Quantidade deve ser maior que zero.");
         }
 
-        for (EmprestimoItem existente : itemDAO.buscarPorEmprestimo(idEmprestimoFinal)) {
-            if (existente.getId() != idItem && existente.getIdLivro() == idLivroFinal) {
-                throw new IllegalArgumentException("Este livro já está neste empréstimo.");
-            }
-        }
-
-        if (novaQuantidade != null) {
-            if (novaQuantidade <= 0) {
-                throw new IllegalArgumentException("Quantidade deve ser maior que zero.");
-            }
-            item.setQuantidade(novaQuantidade);
-        }
-
-        item.setIdEmprestimo(idEmprestimoFinal);
-        item.setIdLivro(idLivroFinal);
-        itemDAO.atualizar(item);
-        return item;
+        EmprestimoItem atualizado = new EmprestimoItem(item.getIdEmprestimo(), item.getIdLivro(), novaQuantidade);
+        itemDAO.atualizar(atualizado);
+        return itemDAO.buscarPorChaveComposta(item.getIdEmprestimo(), item.getIdLivro());
     }
 
     public void removerItem(int idItem) throws IOException {

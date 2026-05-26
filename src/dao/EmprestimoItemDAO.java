@@ -52,11 +52,16 @@ public class EmprestimoItemDAO {
         return HEADER_SIZE + (long) idx * EmprestimoItem.TAMANHO;
     }
 
+    private static final int CHAVE_MULT = 1_000_000;
+
+    private int[] parseChaveCompostaFromIdSintetico(int idSintetico) {
+        int idEmprestimo = idSintetico / CHAVE_MULT;
+        int idLivro = idSintetico % CHAVE_MULT;
+        return new int[]{idEmprestimo, idLivro};
+    }
+
     public EmprestimoItem criar(EmprestimoItem item) throws IOException {
         int[] cab = lerCabecalho();
-        int novoId = cab[0] + 1;
-        item.setId(novoId);
-
         try (RandomAccessFile raf = new RandomAccessFile(caminho, "rw")) {
             raf.seek(offsetRegistro(cab[1]));
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -65,11 +70,16 @@ public class EmprestimoItemDAO {
             dos.flush();
             raf.write(baos.toByteArray());
         }
-        atualizarCabecalho(novoId, cab[1] + 1);
+        // Mantém o padrão (ultimoId,total), mas ultimoId não é usado em PK composta.
+        atualizarCabecalho(0, cab[1] + 1);
         return item;
     }
 
     public EmprestimoItem buscarPorId(int id) throws IOException {
+        int[] chave = parseChaveCompostaFromIdSintetico(id);
+        int idEmprestimo = chave[0];
+        int idLivro = chave[1];
+
         int[] cab = lerCabecalho();
         try (DataInputStream dis = new DataInputStream(new FileInputStream(caminho))) {
             dis.skipBytes(HEADER_SIZE);
@@ -77,7 +87,7 @@ public class EmprestimoItemDAO {
                 byte[] buf = new byte[EmprestimoItem.TAMANHO];
                 if (dis.read(buf) < EmprestimoItem.TAMANHO) break;
                 EmprestimoItem item = EmprestimoItem.desserializar(new DataInputStream(new ByteArrayInputStream(buf)));
-                if (!item.isLapide() && item.getId() == id) return item;
+                if (!item.isLapide() && item.getIdEmprestimo() == idEmprestimo && item.getIdLivro() == idLivro) return item;
             }
         }
         return null;
@@ -116,6 +126,10 @@ public class EmprestimoItemDAO {
 
     /** Exclusão lógica por lápide. */
     public boolean excluir(int id) throws IOException {
+        int[] chave = parseChaveCompostaFromIdSintetico(id);
+        int idEmprestimo = chave[0];
+        int idLivro = chave[1];
+
         int[] cab = lerCabecalho();
         try (RandomAccessFile raf = new RandomAccessFile(caminho, "rw")) {
             for (int i = 0; i < cab[1]; i++) {
@@ -124,7 +138,7 @@ public class EmprestimoItemDAO {
                 byte[] buf = new byte[EmprestimoItem.TAMANHO];
                 raf.readFully(buf);
                 EmprestimoItem item = EmprestimoItem.desserializar(new DataInputStream(new ByteArrayInputStream(buf)));
-                if (!item.isLapide() && item.getId() == id) {
+                if (!item.isLapide() && item.getIdEmprestimo() == idEmprestimo && item.getIdLivro() == idLivro) {
                     item.setLapide(true);
                     raf.seek(pos);
                     ByteArrayOutputStream baos = new ByteArrayOutputStream();
