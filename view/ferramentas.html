@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ferramentas – BiblioSystem</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<nav>
+  <span class="brand">📚 BiblioSystem</span>
+  <a href="index.html">Início</a>
+  <a href="usuarios.html">Usuários</a>
+  <a href="livros.html">Livros</a>
+  <a href="emprestimos.html">Empréstimos</a>
+  <a href="ferramentas.html" class="active">Ferramentas</a>
+  <a href="cupons.html">Cupons</a>
+</nav>
+
+<div class="container">
+  <h1>Ferramentas de Demonstração</h1>
+  <p class="muted-note">Aqui estão as três frentes pedidas: casamento de padrões com BM/KMP, compactação por Huffman e login com criptografia XOR.</p>
+
+  <div class="mini-grid">
+    <div class="card">
+      <h2>1. Casamento de padrões</h2>
+      <div class="form-group">
+        <label for="padrao-texto">Texto</label>
+        <textarea id="padrao-texto" rows="6" placeholder="Cole o texto para busca"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="padrao-termo">Padrão</label>
+        <input type="text" id="padrao-termo" placeholder="Texto a localizar"/>
+      </div>
+      <div class="form-group">
+        <label for="padrao-algoritmo">Algoritmo</label>
+        <select id="padrao-algoritmo">
+          <option value="kmp">KMP</option>
+          <option value="bm">BM</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="executarPadrao()">Executar busca</button>
+      <div id="padrao-resultado" class="result-box hidden"></div>
+    </div>
+
+    <div class="card">
+      <h2>2. Compactação</h2>
+      <div class="form-group">
+        <label for="compactar-texto">Texto</label>
+        <textarea id="compactar-texto" rows="6" placeholder="Cole o texto para compactar"></textarea>
+      </div>
+      <button class="btn btn-success" onclick="executarCompactacao()">Compactar e restaurar</button>
+      <div id="compactacao-resultado" class="result-box hidden"></div>
+    </div>
+
+    <div class="card">
+      <h2>3. Login com XOR</h2>
+      <div class="form-group">
+        <label for="login-email">E-mail</label>
+        <input type="email" id="login-email" placeholder="usuario@email.com"/>
+      </div>
+      <div class="form-group">
+        <label for="login-senha">Senha</label>
+        <input type="password" id="login-senha" placeholder="Senha"/>
+      </div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="registrarCredenciais()">Cadastrar credenciais</button>
+        <button class="btn btn-success" onclick="autenticarCredenciais()">Entrar</button>
+      </div>
+      <p class="muted-note" style="margin-top:.75rem;">Crie primeiro o usuário na tela de Usuários e depois cadastre a senha aqui. A senha é armazenada com XOR e comparada pelo token criptografado.</p>
+      <div id="login-resultado" class="result-box hidden"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showBox(id, data) {
+  const el = document.getElementById(id);
+  el.classList.remove('hidden');
+  el.textContent = data;
+}
+
+async function postForm(url, params) {
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'},
+    body: new URLSearchParams(params)
+  });
+  return await resp.json();
+}
+
+function formatJson(obj) {
+  return JSON.stringify(obj, null, 2);
+}
+
+async function executarPadrao() {
+  try {
+    const data = await postForm('/api/ferramentas/pattern', {
+      texto: document.getElementById('padrao-texto').value,
+      padrao: document.getElementById('padrao-termo').value,
+      algoritmo: document.getElementById('padrao-algoritmo').value
+    });
+    showBox('padrao-resultado', formatJson(data));
+  } catch (err) {
+    showBox('padrao-resultado', 'Erro: ' + err.message);
+  }
+}
+
+async function executarCompactacao() {
+  try {
+    const data = await postForm('/api/ferramentas/compress', {
+      texto: document.getElementById('compactar-texto').value
+    });
+    showBox('compactacao-resultado', formatJson(data));
+  } catch (err) {
+    showBox('compactacao-resultado', 'Erro: ' + err.message);
+  }
+}
+
+async function registrarCredenciais() {
+  try {
+    const data = await postForm('/api/login/register', {
+      email: document.getElementById('login-email').value,
+      senha: document.getElementById('login-senha').value
+    });
+    showBox('login-resultado', formatJson(data));
+  } catch (err) {
+    showBox('login-resultado', 'Erro: ' + err.message);
+  }
+}
+
+async function autenticarCredenciais() {
+  try {
+    const data = await postForm('/api/login/auth', {
+      email: document.getElementById('login-email').value,
+      senha: document.getElementById('login-senha').value
+    });
+    showBox('login-resultado', formatJson(data));
+  } catch (err) {
+    showBox('login-resultado', 'Erro: ' + err.message);
+  }
+}
+</script>
+
+<script src="livereload.js"></script>
+</body>
+</html>

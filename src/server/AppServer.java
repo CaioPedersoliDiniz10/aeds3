@@ -1,5 +1,6 @@
 package server;
 
+import auth.LoginManager;
 import com.sun.net.httpserver.*;
 import controller.*;
 import dao.*;
@@ -21,6 +22,7 @@ public class AppServer {
         // Tabela associativa N:N (PK composta idEmprestimo+idLivro)
         EmprestimoItemDAOIndexado empItemDAO = new EmprestimoItemDAOIndexado(DATA_DIR + "emprestimo_livros.dat");
         CupomDAO cupomDAO               = new CupomDAO(DATA_DIR + "cupons.dat");
+        LoginManager loginManager       = new LoginManager(DATA_DIR + "login.dat", usuarioDAO);
 
         // ---- Controller instances ----
         UsuarioController usuCtrl    = new UsuarioController(usuarioDAO);
@@ -40,6 +42,8 @@ public class AppServer {
         server.createContext("/api/livros/emprestimos", new LivroEmprestimosHandler(empCtrl));
         server.createContext("/api/emprestimos", new EmprestimoHandler(empCtrl));
         server.createContext("/api/cupons",      new CupomHandler(cupomCtrl));
+        server.createContext("/api/ferramentas", new FerramentasHandler());
+        server.createContext("/api/login",       new LoginHandler(loginManager));
 
         // Live reload endpoint — retorna o timestamp de início do servidor
         server.createContext("/api/livereload", exchange -> {

@@ -26,7 +26,13 @@ javac -encoding UTF-8 -d %BIN% ^
   %SRC%\controller\LivroController.java ^
   %SRC%\controller\CupomController.java ^
   %SRC%\controller\EmprestimoController.java ^
+  %SRC%\auth\XorCipher.java ^
+  %SRC%\auth\LoginManager.java ^
+  %SRC%\util\PatternAlgorithms.java ^
+  %SRC%\util\HuffmanTextCompressor.java ^
   %SRC%\server\StaticHandler.java ^
+  %SRC%\server\FerramentasHandler.java ^
+  %SRC%\server\LoginHandler.java ^
   %SRC%\server\UsuarioHandler.java ^
   %SRC%\server\LivroHandler.java ^
   %SRC%\server\LivroEmprestimosHandler.java ^

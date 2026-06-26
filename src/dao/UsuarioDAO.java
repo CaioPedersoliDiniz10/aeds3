@@ -88,6 +88,25 @@ public class UsuarioDAO {
         return null;
     }
 
+    public Usuario buscarPorEmail(String email) throws IOException {
+        if (email == null) return null;
+        String alvo = email.trim();
+        if (alvo.isEmpty()) return null;
+
+        int[] cab = lerCabecalho();
+        try (DataInputStream dis = new DataInputStream(new FileInputStream(caminho))) {
+            dis.skipBytes(HEADER_SIZE);
+            for (int i = 0; i < cab[1]; i++) {
+                byte[] buf = new byte[Usuario.TAMANHO];
+                int read = dis.read(buf);
+                if (read < Usuario.TAMANHO) break;
+                Usuario u = Usuario.desserializar(new DataInputStream(new ByteArrayInputStream(buf)));
+                if (!u.isLapide() && u.getEmail().equalsIgnoreCase(alvo)) return u;
+            }
+        }
+        return null;
+    }
+
     public List<Usuario> listarAtivos() throws IOException {
         List<Usuario> lista = new ArrayList<>();
         int[] cab = lerCabecalho();
